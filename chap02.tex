@@ -1,0 +1,66 @@
+\chapter{Vnitřní struktura GCC}
+
+\section{Fáze překladu}
+
+Během překladu dochází k postupným změnám v reprezentaci dat, jak se program
+transformuje z jazyka frontendu do stále jednodušších jazyků, dokud nevznikne
+požadovaný spustitelný kód. Celkem dojde k několika fázím:
+
+\begin{enumerate}
+	\item Front End: Syntaktický analýza jazyka.
+	\item Middle End: Vysokoúrovňové transformace a optimalizace.
+	\item Back End: Nízkoúrovňové transformace a optimalizace.
+\end{enumerate}
+
+Během tohoto procesu je použito několik mezijazyků, které se dokonce mohou někdy
+míchat (to je běžné, pokud se právě převádí z vyššího jazyka na nižší). Zde je
+základní přehled, některé budou podrobněji rozepsány dále. Všechny používané
+jazyky jsou úzce svázány s objekterý, pomocí kterých jsou reprezentovány.
+
+\begin{description}
+	\item[GENERIC] Nejvyšší mezijazyk, dovoluje vyjádřit funkci jako strom, a
+		může obsahovat prakticky libovolná rozšíření specifická pro jazyk
+		front-endu.
+	\item[GIMPLE] Striktní verze jazyka GENERIC, speciálně každý výraz již smí
+		obsahovat nanejvýš 3 operandy.
+	\item[RTL] Nízkoúrovňový jazyk, podobající se spíše strojovým instrukcím
+		cílové architektury. Obsahuje mimojiné jména registrů a práci se
+		zásobníkem.
+\end{description}
+
+\subsection{Front End}
+
+Front-end je v optimálním případě jediná část překladače, která zná informace o
+jazyce, jeho syntaxi, a omezeních. Může svoji funkci provádět různě, a taktéž se
+tak děje; nezávisle na tom však musí vydat reprezentaci, která je čitelná pro
+další fáze překladu. Tou může být přímo GIMPLE, nebo GENERIC, který se na GIMPLE
+převede.
+
+\subsection{Middle End: Vysokoúrovňové transformace a optimalizace}
+
+Jakmile je získán od frontendu kód v GIMPLu, provádí se většina optimalizací.
+Dojde k rozdělení kódu na bloky a vybudování CFG (Control Flow Graph) mezi nimi,
+čištění kódu, propagace konstant a výrazů, zpracování dat z profilování,
+optimalizace smyček, alias analýza a mnoho dalších.
+
+\subsection{Back End: Nízkoúrovňové transformace a optimalizace}
+
+Po vykonání všech vysokoúrovňových transformací dojde ke snížení GIMPLE do
+jazyka RTL, již za znalosti konkrétní architektury, pro kterou se překládá.
+Vysokoúrovňové konstrukty se přeloží prakticky do výsledné podoby -- na
+manipulaci s registry, zásobníkem a dostupné operace nad tímto.
+
+Nad touto reprezentací probíhají zejména optimalizace přemisťující fyzicky kód v
+paměti, optimalizují skoky a plánují instrukce. Taktéž dochází k alokaci
+registrů.
+
+\section{Reprezentace dat}
+
+\section{Optimalizační průchody}
+
+\section{LTO optimalizace}
+
+\section{Current Alias Analysis implementations}
+
+There are several passes in GCC that provide alias informations.
+

@@ -1,0 +1,82 @@
+\chapter*{Úvod}
+\addcontentsline{toc}{chapter}{Úvod}
+
+%Dosavadní implementace alias analýzy v GCC je založena na článcích [Efficient
+%Field-sensitive pointer analysis for C" a "Ultra-fast Aliasing Analysis using
+%CLA: A Million Lines of C Code in a Second".
+%
+%Pro výpočet analýzy používá constraint-graph, který obsahuje výrazy typu
+%Dereference, vzetí adresy, a skalární, nad kterými spočítá (?) tranzitivní
+%uzávěr a vydedukuje points-to množiny. 
+%
+%Toto má mnohé nevýhody, zejména praktickou nepoužitelnost při optimalizacích
+%celých programů (? IPA a LTO).
+%
+%Právě na téma škálovatelnosti se v posledních letech upřely zraky mnohých 
+%akademiků i programátorů. Příchod LTO a existence programů obrovských rozměrů, 
+%jako je například Firefox či KDE, zapříčinily, že standardní postupy již nejsou 
+%použitelné.
+%
+%Cílem této práce je navrhnout algoritmy a datové struktury, které budou
+%dostatečně rychlé a prostorově úsporné, aby byly použitelné při kompilaci
+%velkých programů bez potřeby superpočítačů.
+
+As soon as programs started their growth, it became necessity to split them into
+functions, and later into compilation units. This shields the programmer from
+unnecessary technical details of implementation, and allows him to concentrate on
+the actual work.
+
+Unfortunately, this is also true for the compiler, which is shielded from the
+implementation details. However in this case, the implementation details are not
+unnecessary and the compiler could do a better job if it knew.
+
+For a long time, most compilers worked on separate compilation units, and didn't
+really care about other units in terms of analysis.
+
+In the recent years, computing power of consumer-grade machines increased to the
+point where something could be done about it, even for some bigger programs.
+
+In 2009 the GCC merged LTO into version 4.5, which enables optimizations on the
+scope of all compilation units.
+
+
+
+
+
+
+
+%Klasický přístup k překládání programů je založen na separaci kódu tak, že
+%jednotlivé překladové jednotky (typicky složené z několika málo souborů) se
+%přeloží najednou, a až po přeložení všech jednotek se program slinkuje do
+%jednoho výsledného objektu.
+%
+%Tento přístup šetří zdroje počítače, který překlad provádí: jednak není nikdy
+%zapotřebí mít nahraný celý program v paměti, dále je možno paralelizovat a
+%překládat jednotlivé jednotky nezávisle. Nadruhou stranu však tento přístup
+%zbraňuje překladači provádět optimalizace na rozhraní překladových jednotek.
+%
+%S tím, jak roste síla počítačů, a zejména dostupné paměti, je možné kompilační
+%jednotky dále zvětšovat a pokoušet se o optimalizaci programů jako celku.
+%
+%Některé projekty se daly vlastní cestou, a tento problém vyřešili
+%předzpracováním, které celý zdrojový kód vložilo do jednoho souboru; příklad
+%může být SQLite, oblíbená relační SQL databáze, v jednom souboru obsahujícím cca
+%370 řádek kódu v jazyce C.
+%
+%U větších projektů, jako například KDE, známé desktopové prostředí, se však brzy
+%stane tento postup neunesitelný, a to zejména díky zdrojům, které jsou zapotřebí
+%na překlad programu, a také díky nemožnosti snadno paralelizovat, což v dnešní
+%době vícejádrových procesorů je nedostatek zcela zásadní.
+%
+%Tato bariéra je částečně odstraněna zavedení možnosti vložit do částečně
+%přeloženého objektu dostatek metadat na to, aby ve fázi linkování šlo spustit
+%některé optimalizační průchody, tzv. LTO (Link Time Optimization).
+%
+%Některé optimalizační průchody však byly navrženy dosti neefektivně s tím, že
+%fungují dobře na jednotlivých funkcích, uspokojivě na menších překladových
+%jednotkách, ale již dobře neškálují na celé programy, a to jak potřebným
+%výpočetním časem, tak prostorem, a to i o několik řádů.
+%
+%Cílem této práce je zanalyzovat stav optimalizací, které aktuálně nejsou
+%použitelné, navrhnout a implementovat řešení.
+%

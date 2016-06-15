@@ -1,0 +1,100 @@
+\newcommand{\definice}{\paragraph{Definice.}}
+\newcommand{\todo}[1]{{\bf\large TODO: #1}}
+
+\section{Alias analysis}
+
+The goal of alias analysis is to deduce if given (memory) objects can be reached
+via two distinct "paths". In the language C, the object would be a memory
+location and the path would be a pointer to memory. This is true even for
+languages utilizing references or managed pointer, but for the simplicity, I
+will only work with pointers and assume language C. The same principle could be
+extended to other languages, as well as most assemblies.
+
+We say two pointers are aliasing if they point to a same memory location. Let's
+look at a simple example, the notoric function memcpy():
+
+\begin{verbatim}
+void memcpy(char *dest, const char *src, size_t n) {
+    char *dest_c = (char *) dest;
+    char *src_c = (char *) src;
+    for (int i = 0; i < n; i++)
+        dest_c[i] = src_c[i];
+}
+\end{verbatim}
+
+The function would benefit from the alias information of {\it dest} and {\it
+src}. If we could prove the pointers always point to the same place, the
+function could just be skipped. On the other hand if we could prove the pointers
+never point to the same place in memory, we could do something clever, like
+moving more bytes at a time, without having to worry we could overwrite the
+source memory.
+
+Unfortunately, neither of these cases are usually true, or it's hard to prove
+it. The glibc function memcpy solves this by specifying the memory locations
+can't overlap. This enables efficient implementations, and let's the programmer
+worry about overlapping memory.
+
+We could find many more examples like this, and even more of simpler ones.
+
+As we can see in the example above, it's not easy to show if the pointers alias
+or not. In this case, it's due to the fact that they are function parameters,
+and we would have to examine all possible parameters this function is ever
+supplied, and decided if they can alias. In some cases, we just don't have
+enough information, so the correct answer is a conservative one: may alias.
+
+\subsection{Problem variations}
+
+As noted above, the problem still isn't exactly defined. We could analyze some
+relations at compile time, but more complex situations can't be decided before
+the program is running on a specific input. It may be possible to check for
+aliasing during runtime, especially in managed languages like Java. In this
+work, I will be only looking at compile-time alias analysis.
+
+\subsubsection{Flow and context insensitive}
+
+In it's simplest form, we might try to solve the alias analysis problem without
+any regard to control flow and context. This basically means we will traverse
+all the functions in a program, solve them individually, and in each function,
+we would ignore all constrol flow statements.
+
+This is relatively easy to do and is currently being done in gcc.
+% TODO: Where exactly?
+
+\subsubsection{Flow sensitive}
+
+By ignoring control flow we have significantly simplified the problem, as
+there are some rather complicated conditionals we have avoided. However, we have
+missed some easy ways to optimize. Let us look at another example:
+
+\begin{verbatim}
+int a, b, n, *x, *y;
+if (a > b) {
+    x = &a;
+    y = &b;
+} else {
+    x = &b;
+    y = &a;
+}
+memcpy(x,y,n);
+\end{verbatim}
+
+Let us denote by {\it PT(\tt x\it)} the set of memory locations {\tt x} can
+point to. If we ignore the control flow, we can see that {\it PT(\tt x\it) = PT(\tt y\it)
+= \{\tt a\it, \tt b\it\}}. 
+
+If we take the conditional into consideration, even without knowing anything about
+$a$ and $b$, we can see that $x$ and $y$ never aliases in this code.
+
+Moreover, we can have specific alias information if we know where the alias
+question is asked. That is, if we only care about the {\tt else} block, we can
+derive the exact $PT$ sets and alias information. But in the memcpy call, we
+only know the alias information, not the exact PT sets (as there are two
+possibilites). If we want to work further, we can, but have to represent both
+branches.
+
+One can easily see that the amount of information needed is going to grow
+exponentially.
+
+\subsubsection{Context sensitive}
+
+
