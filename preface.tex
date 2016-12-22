@@ -1,4 +1,4 @@
-\chapter*{Úvod}
+\chapter*{Preface}
 \addcontentsline{toc}{chapter}{Úvod}
 
 %Dosavadní implementace alias analýzy v GCC je založena na článcích [Efficient
@@ -39,10 +39,21 @@ point where something could be done about it, even for some bigger programs.
 In 2009 the GCC merged LTO into version 4.5, which enables optimizations on the
 scope of all compilation units.
 
+The goal is to explore current link-time optimization techniques, identify a
+bottleneck, and improve upon it.
 
 
 
 
+I will introduce link-time optimization techniques in the first chapter,
+introduce Alias Analysis problem and it's possible solutions in the second
+chapter, with emphasis on practical use in current compilers. I will improve
+upon Andersen's inclusion-based algorithm in the third chapter, by using
+efficient data-structure derived from Bloom filters, sacrificing some precision
+for tractability, and compare the results with non-approximate solution using
+the same algorithm. In the last chapter, I will compare my implementation with
+already available implementations in production compilers with respect to
+resource use during compilation and their usability for large programs.
 
 
 %Klasický přístup k překládání programů je založen na separaci kódu tak, že

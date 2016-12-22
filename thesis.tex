@@ -45,6 +45,8 @@
 \usepackage{paralist}       % improved enumerate and itemize
 \usepackage[usenames]{xcolor}  % typesetting in color
 \usepackage[czech]{babel}
+%\usepackage[toc,page]{appendix}
+
 
 %%% Basic information on the thesis
 
@@ -83,7 +85,20 @@ Dedication.
 
 % Abstract (recommended length around 80-200 words; this is not a copy of your thesis assignment!)
 \def\Abstract{%
-Abstract.
+\TODO{This is assignment. Replace with proper abstract!}
+Moderní překladače programovacích jazyků obsahují velké množství optimalizací,
+které vedou ke zrychlení a zmenšení výsledného programu. V posledních letech
+je stále častějších optimalizovat program jako celek místo tradičního modelu,kde
+se jednotlivé zdrojové soubory přeloží a optimalizují samostatně. Tento postup
+vede k nutnosti řešit probémy nad velkými grafy, které často obsahují desítky až
+miliony vrcholů. Optimalizace navržené pro výrazně menší jednotky překladu pak
+vyžadují nepřiměřené množství času a paměti.
+
+Řešitel prostuduje datové strukty určené k práci nad velkými grafy a seznámí se
+s implementací jednotlivých optimalizací v GNU Compiler Collection (GCC) se
+zaměřením na interprocedurální points-to analýzu. Posoudí praktickou
+použitelnost pokročilých datových struktur a algoritmů ke zlepšení
+škálovatelnosti a prakticky implementuje vybrané z nich.
 }
 
 % 3 to 5 keywords (recommended), each enclosed in curly braces
@@ -102,6 +117,7 @@ Abstract.
 
 % Definitions of macros (see description inside)
 \include{macros}
+\usepackage{kmath}
 
 % Title page and various mandatory informational pages
 \begin{document}
@@ -115,6 +131,7 @@ Abstract.
 \include{preface}
 \include{chap01}
 \include{chap02}
+\include{chap03}
 
 \include{epilog}
 

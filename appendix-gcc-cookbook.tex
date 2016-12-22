@@ -1,0 +1,70 @@
+\appendix
+\chapter{GCC cookbook}
+
+Working on GCC is not easy, as it's not a program like others. It's a suite of
+compilers\footnote{GCC stands for GNU Compiler Collection}, but contains some
+other libraries (for example, the C++ standard library). Moreover, to test our
+results, we need to invoke the newly compiled compiler, instead of the system
+one. This appendix contains some useful tips, that should be enough to test all
+the provided code and replicate the results.
+
+\section{Compiling GCC}
+
+As any other package utilizing {\tt autotools}, GCC can be compiled by a simple
+{\tt ./configure \&\& make \&\& make install}. Besides the usual needs, as
+configuring a proper prefix (so it won't overwrite our system files), this
+approach has several other limitations. For the most part, it takes way too
+long to build, as it builds all the language frontends and bootstraps itself.
+The process of bootstrapping serves two main function, to test the new compiler
+and to provide a more optimized version (for example, if the compiler on host
+system was too old to support some optimizations).
+
+Both of these features are good and useful in most cases. None of them is
+useful in development and debugging. Let's see why:
+
+\paragraph{Bootstrap.} It compiles GCC three times in a row, each time with the
+previous version. This not only takes time, but makes debugging harder, as we
+now have the additional need to identify, if a given manifestation is a direct
+result of our bug, or a result of miscompiled first (or later) stage.
+
+\paragraph{Language frontends.} GCC itself is written mostly in C/C++, and
+those are the only languages required to build a working compiler. Building
+frontends that won't be tested is a waste of time.
+
+\paragraph{Multilib.} Provides support for running 32bit code on 64bit
+machines. We usually won't need it for development.
+
+After taking all of this into account, let's see how our build will look:
+
+\begin{verbatim}
+mkdir obj-build; cd obj-build
+../configure --prefix=$HOME/gcc/dev --enable-languages=c++,c \
+   --disable-bootstrap --enable-maintainer-mode --disable-multilib
+make
+make install
+\end{verbatim}
+
+A build out of repository root is recommended (we used obj-build), maintainer
+is required if configuration for autotools or automake was changed (it was in
+this project).
+
+After this, we have a working compiler ready to use, in {\tt \$HOME/gcc/dev}.
+This path can be inserted into the PATH system variable, to prefer our new
+development compiler.
+
+One of the attachments is a handy script that handles all of this, and provides
+not only easy to use interface, but also reproducibility of results.
+
+\section{Runtime libraries}
+
+As mentioned above, the runtime library is part of the GCC suite. It's usually
+built during the first build, and never touch again unless it's sources were
+changed. This gives us an opportunity to cheat little: building the runtime
+with a known working compiler, and commit the changes under scrutiny after the
+runtime is built. This gives us the assurance that bugs we are seeing are
+directly caused by our compiler, not by a miscompilation of runtime library.
+
+One of the usual symptoms follows: after a unsuccessful modification the
+changes are reset and a known working version is checked-out, the new compiler
+may seem to be still malfunctioning. This may be caused by a miscompiled
+runtime, built with the (buggy) experimental compiler.
