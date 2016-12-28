@@ -245,22 +245,29 @@ to store them in a linked-list, trees or even hash tables, as a humble bit array
 fulfills the task. A little unusual form of a bit array has been used, in order
 to achieve less allocations and space efficiency.
 
-As mentioned above, we have split the value to {\tt offset}, {\tt hash} and {\tt
+As mentioned above, we will split the value to {\tt offset}, {\tt hash} and {\tt
 data} at binary boundaries. This means we can simply concatenate the values to
-get the represented integer, and vice versa.
-
-The data is stored in the following way:
-
-\begin{center}
-	{\tt element = offset.hash.data} $\Leftrightarrow$
-	{\tt universe[offset.hash].bit[data]}
-\end{center}
-
-It's not strictly required, but for implementation purposes it will be useful to
-choose $s = 2^z$ for some integer $z$ and the side index hash function
-\goodbreak $h_s(x) = (x >> 6)\quad\&\quad (s-1)$. This function has the
-following nice properties:
+get the represented integer, and vice versa. We can now organize the data into
+{\it buckets} and {\it superbuckets} in the following way:
 
 \begin{itemize}
-	\item  
+	\item Each offset has it's own {\it superbucket}.
+	\item Each {\it superbucket} contains a {\it bucket} for every {\tt hash} value.
+	\item Each {\it bucket} contains a bit for every {\tt data} value.
 \end{itemize}
+
+In this way a bit corresponding to an element can be easily found, and vice
+versa.
+
+\begin{center}
+	{\tt element = offset$\cdot$hash$\cdot$data} $\Leftrightarrow$
+	{\tt universe[offset$\cdot$hash].bit[data]}
+\end{center}
+
+
+\begin{figure}[h!]
+	\centering
+	\label{figure-bucketshop}
+	\includegraphics{img/bucketshop.pdf}
+	\caption{Bucket and superbuckets in an array}
+\end{figure}

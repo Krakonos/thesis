@@ -44,9 +44,14 @@
 \usepackage{booktabs}       % improved horizontal lines in tables
 \usepackage{paralist}       % improved enumerate and itemize
 \usepackage[usenames]{xcolor}  % typesetting in color
-\usepackage[czech]{babel}
+%\usepackage[czech]{babel}
 %\usepackage[toc,page]{appendix}
 
+
+
+\usepackage{tikz} % To generate the plot from csv
+\usepackage{pgfplots}
+\usepgfplotslibrary{dateplot}
 
 %%% Basic information on the thesis
 
@@ -132,6 +137,7 @@ použitelnost pokročilých datových struktur a algoritmů ke zlepšení
 \include{chap01}
 \include{chap02}
 \include{chap03}
+\include{misc}
 
 \include{epilog}
 

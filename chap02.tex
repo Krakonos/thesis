@@ -1,66 +1,297 @@
-\chapter{Vnitřní struktura GCC}
+\chapter{Alias analysis}
 
-\section{Fáze překladu}
+The goal of alias analysis is to deduce if given (memory) objects can be reached
+via two distinct "paths". In the language C, the object would be a memory
+location and the path would be a pointer to memory. This is true even for
+languages utilizing references or managed pointer, but for the simplicity, I
+will only work with pointers and assume language C. The same principle could be
+extended to other languages, as well as most assemblies.
 
-Během překladu dochází k postupným změnám v reprezentaci dat, jak se program
-transformuje z jazyka frontendu do stále jednodušších jazyků, dokud nevznikne
-požadovaný spustitelný kód. Celkem dojde k několika fázím:
+We say two pointers are aliasing if they point to a same memory location. Let's
+look at a simple example, the notoric function memcpy():
+
+\begin{verbatim}
+void memcpy(char *dest, const char *src, size_t n) {
+    char *dest_c = (char *) dest;
+    char *src_c = (char *) src;
+    for (int i = 0; i < n; i++)
+        dest_c[i] = src_c[i];
+}
+\end{verbatim}
+
+The function would benefit from the alias information of {\it dest} and {\it
+src}. If we could prove the pointers always point to the same place, the
+function could just be skipped. On the other hand if we could prove the pointers
+never point to the same place in memory, we could do something clever, like
+moving more bytes at a time, without having to worry we could overwrite the
+source memory.
+
+Unfortunately, neither of these cases are usually true, or it's hard to prove
+it. The glibc function memcpy solves this by specifying the memory locations
+can't overlap. This enables efficient implementations, and let's the programmer
+worry about overlapping memory.
+
+We could find many more examples like this, and even more of simpler ones.
+
+As we can see in the example above, it's not easy to show if the pointers alias
+or not. In this case, it's due to the fact that they are function parameters,
+and we would have to examine all possible parameters this function is ever
+supplied, and decided if they can alias. In some cases, we just don't have
+enough information, so the correct answer is a conservative one: may alias.
+
+\subsection{Problem variations: }
+
+As noted above, the problem still isn't exactly defined. We could analyze some
+relations at compile time, but more complex situations can't be decided before
+the program is running on a specific input. It may be possible to check for
+aliasing during runtime, especially in managed languages like Java. In this
+work, I will be only looking at compile-time alias analysis.
+
+\subsubsection{Flow and context insensitive}
+
+In it's simplest form, we might try to solve the alias analysis problem without
+any regard to control flow and context. This basically means we will traverse
+all the functions in a program, solve them individually, and in each function,
+we would ignore all constrol flow statements.
+
+This is relatively easy to do and is currently being done in gcc.\footnote{The
+Alias Oracle resides in the tree-ssa-alias.c and tree-ssa-structalias.c}
+
+\subsubsection{Flow sensitive}
+
+By ignoring control flow we have significantly simplified the problem, as
+there are some rather complicated conditionals we have avoided. However, we have
+missed some easy ways to optimize. Let us look at another example:
+
+\begin{verbatim}
+int a, b, n, *x, *y;
+if (a > b) {
+    x = &a;
+    y = &b;
+} else {
+    x = &b;
+    y = &a;
+}
+memcpy(x,y,n);
+\end{verbatim}
+
+Let us denote by {\it PT(\tt x\it)} the set of memory locations {\tt x} can
+point to. If we ignore the control flow, we can see that {\it PT(\tt x\it) = PT(\tt y\it)
+= \{\tt a\it, \tt b\it\}}. 
+
+If we take the conditional into consideration, even without knowing anything about
+$a$ and $b$, we can see that $x$ and $y$ never aliases in this code.
+
+Moreover, we can have specific alias information if we know where the alias
+question is asked. That is, if we only care about the {\tt else} block, we can
+derive the exact $PT$ sets and alias information. But in the memcpy call, we
+only know the alias information, not the exact PT sets (as there are two
+possibilites). If we want to work further, we can, but have to represent both
+branches.
+
+One can easily see that the amount of information needed is going to grow
+exponentially.
+
+\subsubsection{Context sensitive}
+
+By context, we usually mean call context, and thus the context sensitive
+analysis is only available in the interprocedural case.
+
+
+
+\subsection{Problem complexity}
+
+Before we start diving into the problem variations and algorithms let us
+consider how complex the problem really is, as we have to manage our
+expectations.
+
+Let us consider the following C code, where $X$, $Y$ and $Z$ are some constants and
+{\tt x29A} is some evil function.
+
+\begin{verbatim}
+void x29A(void **arg1, void *arg2, char *str);
+
+int main() {
+	void *a = X;
+	void *b = Y;
+	x29A(&a, b, Z);
+	some_call(a, b)
+}
+\end{verbatim}
+
+Consider we want to know the exact points-to sets for $a$ and $b$. We now have
+two problems, both of them hidden in the {\tt x29A}. Unfortunately, {\tt x29A}
+is evil and can do almost anything:
+
+The obvious problem is, that {\tt x29A} might change the pointer $a$. This
+requires the analysis of {\tt x29A} which might, or might not be possible. Let's
+consider the following simple code for {\tt x29A}:
+
+\begin{verbatim}
+void x29A(void **arg1, void *arg2, char *str) {
+	execute(str);
+	*arg1 = arg2;
+}
+\end{verbatim}
+
+As the function {\tt execute} has no access to $a$, the set $PT(a)$ can be
+either ${X}$ or ${X, b}$, depending on the finiteness of {\tt execute()}.
+
+Even when knowing the comlete code of {\tt execute()} and the contents of {str},
+there is now way of knowing if {\tt execute()} ever returns, as it might be
+simulator of turing machine and {\tt str} some arbitrary machine and it's input.
+This means that solving exact points-to sets is equivalent  to solving halting
+problem, which is no good.
+
+\subsubsection{May and Must aliases}
+
+To make our problem tractable we have to give up the exactness. Let us assume we
+only want to compute May-alises or Must-aliases, that is a set of objects a
+pointer may alias, or decide if two pointers must point to the same object. This
+seems considerably easier, as we can now make some assumption. 
+
+Consider the function $x29A$ from the previous example. We can assume it exits
+and continues execution as expected. If this were not the case, our analysis
+would be void.  This already means we don't have to solve the halting problem,
+which is good.  Moreover, if the body of $x29A$ is available, we can potentially
+explore all possible execution paths, and check them for assignments to $a$. If
+there is at least one path that assigns $Z$ to $a$, put $Z$ into a's PT set. If
+all paths necessarily end with $a = \&Z$ or $a = b$, we that $a$ must point to
+$Z$ directly, or must alias with $b$ respectively.
+
+Both of these are very useful but must-alias is in many cases repleceable by
+value propagation, and we will not be considering it further.
+
+\subsubsection{Single-level pointers}
+
+Let us first analyze the complexity of may-alias in a simple case, where only
+single level pointers exist. Let us denote by $n$ the number of pointers, by $v$
+number of scalar variables and other objects a pointer can point to (functions,
+heap locations, ...).
+
+Suppose we run the following intra-procedural flow-insensitive algorithm,
+assuming we have all the information needed:
 
 \begin{enumerate}
-	\item Front End: Syntaktický analýza jazyka.
-	\item Middle End: Vysokoúrovňové transformace a optimalizace.
-	\item Back End: Nízkoúrovňové transformace a optimalizace.
+	\item For each pointer variable $p_i$, let $PT := \{ 0_i \}$, where $0_i$ is
+		the initial value of $p_i$.
+	\item Propagate points-to sets for each modification of $p_i$.
+\label{triv-alg-prop}
+	\item If any set was changed in step \ref{triv-alg-prop}, go back to
+		\ref{triv-alg-prop}.
 \end{enumerate}
 
-Během tohoto procesu je použito několik mezijazyků, které se dokonce mohou někdy
-míchat (to je běžné, pokud se právě převádí z vyššího jazyka na nižší). Zde je
-základní přehled, některé budou podrobněji rozepsány dále. Všechny používané
-jazyky jsou úzce svázány s objekterý, pomocí kterých jsou reprezentovány.
+We can easily formulate this problem as system of set inequalities where:
 
-\begin{description}
-	\item[GENERIC] Nejvyšší mezijazyk, dovoluje vyjádřit funkci jako strom, a
-		může obsahovat prakticky libovolná rozšíření specifická pro jazyk
-		front-endu.
-	\item[GIMPLE] Striktní verze jazyka GENERIC, speciálně každý výraz již smí
-		obsahovat nanejvýš 3 operandy.
-	\item[RTL] Nízkoúrovňový jazyk, podobající se spíše strojovým instrukcím
-		cílové architektury. Obsahuje mimojiné jména registrů a práci se
-		zásobníkem.
-\end{description}
+\begin{itemize}
+	\item $p_i := \&a$ is $a \in p_i$ for $a$ scalar
+	\item $p_i := p_j$ is $p_j \subseteq p_i$
+\end{itemize}
 
-\subsection{Front End}
+As there are only single level pointers, we are not allowed to take address of a
+pointer, and dereference always results in a scalar, which does not change any
+pointer.
 
-Front-end je v optimálním případě jediná část překladače, která zná informace o
-jazyce, jeho syntaxi, a omezeních. Může svoji funkci provádět různě, a taktéž se
-tak děje; nezávisle na tom však musí vydat reprezentaci, která je čitelná pro
-další fáze překladu. Tou může být přímo GIMPLE, nebo GENERIC, který se na GIMPLE
-převede.
+Now it's clear that when the algorithm exits, the solution is conservatively
+correct. Also, if $n$ and $v$ are finite, it will finish after at most $n \cdot
+v$ steps, as in each step at least one set will increase in size, and every set
+can have at most $v$ elements in.
+This gives us simple (not necessarily efficient) polynomial-time algorithm.
 
-\subsection{Middle End: Vysokoúrovňové transformace a optimalizace}
+Of course there is a problem that in practice we  do not have all the information.
+That may include external functions (possibly with side-effects), dynamically
+allocated memory and more obscure, possibly language-specific, features as for
+example pointer arithmetic. We will ignore these now for simplicity, and
+deal with them later. \TODO{Reference.}
 
-Jakmile je získán od frontendu kód v GIMPLu, provádí se většina optimalizací.
-Dojde k rozdělení kódu na bloky a vybudování CFG (Control Flow Graph) mezi nimi,
-čištění kódu, propagace konstant a výrazů, zpracování dat z profilování,
-optimalizace smyček, alias analýza a mnoho dalších.
+\subsubsection{Multi-level pointers}
 
-\subsection{Back End: Nízkoúrovňové transformace a optimalizace}
+Things start to be difficult when multi-level pointers come in play. 
+\TODO{Proof.}
 
-Po vykonání všech vysokoúrovňových transformací dojde ke snížení GIMPLE do
-jazyka RTL, již za znalosti konkrétní architektury, pro kterou se překládá.
-Vysokoúrovňové konstrukty se přeloží prakticky do výsledné podoby -- na
-manipulaci s registry, zásobníkem a dostupné operace nad tímto.
+\subsection{Known algorithms and approaches}
 
-Nad touto reprezentací probíhají zejména optimalizace přemisťující fyzicky kód v
-paměti, optimalizují skoky a plánují instrukce. Taktéž dochází k alokaci
-registrů.
+During the years a few algorithmic approaches have been developed. Here is a
+quick overview of the strengths and weaknesses of those approaches.
 
-\section{Reprezentace dat}
+\subsubsection{Andersen's algorithm}
 
-\section{Optimalizační průchody}
+Otherwise known as {\it inclusion-based} algorithm is based on direct
+mathematical representation of points-to sets, that is, a points-to set for a
+given pointer $p$ is a set $S_p$ containing all values pointer $p$ can point to.
+Further expressions are then translated into set inequalities, which are
+iteratively solved:
 
-\section{LTO optimalizace}
+\begin{itemize}
+	\item $p_i = \&a \quad \to \quad a \in p_i$
+	\item $p_i = p_j \quad \to \quad p_j \subseteq p_i$ 
+	\item $p_i = *p_j \quad \to \quad \forall p_k \in p_j : p_k \subseteq p_i$
+\end{itemize}
 
-\section{Current Alias Analysis implementations}
+It was published in his PhD thesis in 1994 [\TODO {ref}] and remains to be a
+popular algorithm to this day.
 
-There are several passes in GCC that provide alias informations.
 
+\subsubsection{Steensgaard's algorithm}
+
+Is a {\it unification-based} algorithm, which means it partitions pointers into
+equivalence classes, and deems that two pointers alias iff they are in the same
+equivalence class.
+
+It was published in his article in 1996 [\TODO{ref}]. It is deemed to be very
+fast algorithm, though not as precise. However I know of no open implementation,
+as it is believed to be patented by Microsoft, and was removed from LLVM in 2006
+\TODO{REF: http://lists.llvm.org/pipermail/llvm-dev/2006-December/007557.html}
+
+
+\subsubsection{BDD-based algorithms}
+
+\TODO{Všechno.}
+
+
+\section{Current state in compilers}
+
+There are not many modern compilers with open code that can be examined and improved
+upon. One of the players is GCC, that has been around since 1985
+(1.x release was in 1991) and is the most widely used open source compiler
+today. The younger competitor is LLVM/Clang, first released in 2003. It's
+written in C++, is supported by Apple since 2005, and due to it's age has much
+mure modern design, and is generally deemed to be easier to extend and work
+with.
+
+There are much more compilers available, but most of them are proprietary or not
+maintained.
+
+Also, it is very hard to compare many of the published results, as the
+implementations are not public, and mostly implemented for compilers that are
+unable to keep up with current C/C++ standards and successfully build modern
+(and big) projects.
+
+A lot of researchers also focus on Java compiles and algorithms, and though many
+techniques can be used for C and C++, Java is very different language, in that
+it has JIT\footnote{Just In Time} compiler, and does not have pointers in the
+classic sense, only references. 
+
+\subsubsection{LLVM/Clang}
+
+As LLVM is very modular, it contains multiple alias analysis passes. 
+
+\begin{itemize}
+	\item {\bf -basic-aa} pass, providing local alias information using many
+		language-specific facts.
+	\item {\bf -scev-aa} pass, translation queries into Scalar Evolution queries
+		\TODO{WTF?}
+\end{itemize}
+
+Additionally, there are three passes in {\tt poolalloc} package:
+
+\begin{itemize}
+	\item {\bf -globalsmodref-aa} pass, providing context-sensitive alias
+		information for global variables
+	\item {\bf -steens-aa} pass, implementing Steensgaard's algorithm.
+	\item {\bf -ds-aa} pass, implementing unification-based Data Structure
+		analysis, providing context and field sensitive alias information.
+\end{itemize}
+
+\TODO{Are they interprocedural? steens probably is, but needs checking; more
+info on this here: http://llvm.org/docs/AliasAnalysis.html}

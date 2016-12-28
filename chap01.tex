@@ -3,19 +3,42 @@
 
 \chapter{Link-time optimizations}
 
-In the beginning of this chapter, I will present an overview of the process of
-how are modern compilers used by projects, and how they work internally, and
-provide some insight into the difficulties and gains of link-time optimization.
-Later, I will focus on Alias Analysis in general and specifically in the GCC
-compiler.
+In the beginning of this chapter, we will look into the composition of modern
+programs, their codebase size and organization. We will continue with an
+overview of compiler's workflow and introduce current LTO framework.
+
+
+\section{Code organization and codebase size}
+
+Let us star by examining some of the code bases for programs we use every day.
+A lot of developers run Linux, Firefox (or other browser) and GCC every day, but
+unless we're developing one of them, we don't really have an idea of how large
+they are. They are enormous, containing millions of lines of code and growing. 
+The chart in Figure \ref{figure-loc} show historical development over the past 10
+years.
+
+\begin{figure}[h!]
+\label{figure-loc}
+\centering
+\includegraphics{graphs/loc/loc.pdf}
+\caption{Codebase size of Firefox, Chrome and GCC over time. [Data provided by
+	openhub.net]}
+\end{figure}
+
+As if it weren't enough, almost all of the code gets compiled info a single
+binary, as seen in Figure \ref{figure-firefox-objsize}
+
+\begin{figure}[h!]
+\label{figure-firefox-objsize}
+\centering
+\includegraphics[angle=-90]{graphs/firefox-objsize/objsize.pdf}
+\caption{Firefox 50.0.2 object sizes by binary}
+\end{figure}
+
+
 
 \section{The process of compilation and optimization}
 
-Let us first take a look at the composition of regular software project and how
-it invokes the compiler, so we know what needs to be done.
-
-Let's assume for simplicity that the project uses generic Makefile to build a
-project, and hand written rules. The
 
 \section{When to optimize?}
 
@@ -25,413 +48,52 @@ think about when should the optimization happen.
 
 
 
-\section{Alias analysis}
-
-The goal of alias analysis is to deduce if given (memory) objects can be reached
-via two distinct "paths". In the language C, the object would be a memory
-location and the path would be a pointer to memory. This is true even for
-languages utilizing references or managed pointer, but for the simplicity, I
-will only work with pointers and assume language C. The same principle could be
-extended to other languages, as well as most assemblies.
-
-We say two pointers are aliasing if they point to a same memory location. Let's
-look at a simple example, the notoric function memcpy():
-
-\begin{verbatim}
-void memcpy(char *dest, const char *src, size_t n) {
-    char *dest_c = (char *) dest;
-    char *src_c = (char *) src;
-    for (int i = 0; i < n; i++)
-        dest_c[i] = src_c[i];
-}
-\end{verbatim}
-
-The function would benefit from the alias information of {\it dest} and {\it
-src}. If we could prove the pointers always point to the same place, the
-function could just be skipped. On the other hand if we could prove the pointers
-never point to the same place in memory, we could do something clever, like
-moving more bytes at a time, without having to worry we could overwrite the
-source memory.
-
-Unfortunately, neither of these cases are usually true, or it's hard to prove
-it. The glibc function memcpy solves this by specifying the memory locations
-can't overlap. This enables efficient implementations, and let's the programmer
-worry about overlapping memory.
-
-We could find many more examples like this, and even more of simpler ones.
-
-As we can see in the example above, it's not easy to show if the pointers alias
-or not. In this case, it's due to the fact that they are function parameters,
-and we would have to examine all possible parameters this function is ever
-supplied, and decided if they can alias. In some cases, we just don't have
-enough information, so the correct answer is a conservative one: may alias.
-
-\subsection{Problem variations: }
-
-As noted above, the problem still isn't exactly defined. We could analyze some
-relations at compile time, but more complex situations can't be decided before
-the program is running on a specific input. It may be possible to check for
-aliasing during runtime, especially in managed languages like Java. In this
-work, I will be only looking at compile-time alias analysis.
-
-\subsubsection{Flow and context insensitive}
-
-In it's simplest form, we might try to solve the alias analysis problem without
-any regard to control flow and context. This basically means we will traverse
-all the functions in a program, solve them individually, and in each function,
-we would ignore all constrol flow statements.
-
-This is relatively easy to do and is currently being done in gcc.\footnote{The
-Alias Oracle resides in the tree-ssa-alias.c and tree-ssa-structalias.c}
-
-\subsubsection{Flow sensitive}
-
-By ignoring control flow we have significantly simplified the problem, as
-there are some rather complicated conditionals we have avoided. However, we have
-missed some easy ways to optimize. Let us look at another example:
-
-\begin{verbatim}
-int a, b, n, *x, *y;
-if (a > b) {
-    x = &a;
-    y = &b;
-} else {
-    x = &b;
-    y = &a;
-}
-memcpy(x,y,n);
-\end{verbatim}
-
-Let us denote by {\it PT(\tt x\it)} the set of memory locations {\tt x} can
-point to. If we ignore the control flow, we can see that {\it PT(\tt x\it) = PT(\tt y\it)
-= \{\tt a\it, \tt b\it\}}. 
-
-If we take the conditional into consideration, even without knowing anything about
-$a$ and $b$, we can see that $x$ and $y$ never aliases in this code.
-
-Moreover, we can have specific alias information if we know where the alias
-question is asked. That is, if we only care about the {\tt else} block, we can
-derive the exact $PT$ sets and alias information. But in the memcpy call, we
-only know the alias information, not the exact PT sets (as there are two
-possibilites). If we want to work further, we can, but have to represent both
-branches.
-
-One can easily see that the amount of information needed is going to grow
-exponentially.
-
-\subsubsection{Context sensitive}
-
-By context, we usually mean call context, and thus the context sensitive
-analysis is only available in the interprocedural case.
-
-
-
-\subsection{Problem complexity}
-
-Before we start diving into the problem variations and algorithms let us
-consider how complex the problem really is, as we have to manage our
-expectations.
-
-Let us consider the following C code, where $X$, $Y$ and $Z$ are some constants and
-{\tt x29A} is some evil function.
-
-\begin{verbatim}
-void x29A(void **arg1, void *arg2, char *str);
-
-int main() {
-	void *a = X;
-	void *b = Y;
-	x29A(&a, b, Z);
-	some_call(a, b)
-}
-\end{verbatim}
-
-Consider we want to know the exact points-to sets for $a$ and $b$. We now have
-two problems, both of them hidden in the {\tt x29A}. Unfortunately, {\tt x29A}
-is evil and can do almost anything:
-
-The obvious problem is, that {\tt x29A} might change the pointer $a$. This
-requires the analysis of {\tt x29A} which might, or might not be possible. Let's
-consider the following simple code for {\tt x29A}:
-
-\begin{verbatim}
-void x29A(void **arg1, void *arg2, char *str) {
-	execute(str);
-	*arg1 = arg2;
-}
-\end{verbatim}
-
-As the function {\tt execute} has no access to $a$, the set $PT(a)$ can be
-either ${X}$ or ${X, b}$, depending on the finiteness of {\tt execute()}.
-
-Even when knowing the comlete code of {\tt execute()} and the contents of {str},
-there is now way of knowing if {\tt execute()} ever returns, as it might be
-simulator of turing machine and {\tt str} some arbitrary machine and it's input.
-This means that solving exact points-to sets is equivalent  to solving halting
-problem, which is no good.
-
-\subsubsection{May and Must aliases}
-
-To make our problem tractable we have to give up the exactness. Let us assume we
-only want to compute May-alises or Must-aliases, that is a set of objects a
-pointer may alias, or decide if two pointers must point to the same object. This
-seems considerably easier, as we can now make some assumption. 
-
-Consider the function $x29A$ from the previous example. We can assume it exits
-and continues execution as expected. If this were not the case, our analysis
-would be void.  This already means we don't have to solve the halting problem,
-which is good.  Moreover, if the body of $x29A$ is available, we can potentially
-explore all possible execution paths, and check them for assignments to $a$. If
-there is at least one path that assigns $Z$ to $a$, put $Z$ into a's PT set. If
-all paths necessarily end with $a = \&Z$ or $a = b$, we that $a$ must point to
-$Z$ directly, or must alias with $b$ respectively.
-
-Both of these are very useful but must-alias is in many cases repleceable by
-value propagation, and we will not be considering it further.
-
-\subsubsection{Single-level pointers}
-
-Let us first analyze the complexity of may-alias in a simple case, where only
-single level pointers exist. Let us denote by $n$ the number of pointers, by $v$
-number of scalar variables and other objects a pointer can point to (functions,
-heap locations, ...).
-
-Suppose we run the following intra-procedural flow-insensitive algorithm,
-assuming we have all the information needed:
-
-\begin{enumerate}
-	\item For each pointer variable $p_i$, let $PT := \{ 0_i \}$, where $0_i$ is
-		the initial value of $p_i$.
-	\item Propagate points-to sets for each modification of $p_i$.
-\label{triv-alg-prop}
-	\item If any set was changed in step \ref{triv-alg-prop}, go back to
-		\ref{triv-alg-prop}.
-\end{enumerate}
-
-We can easily formulate this problem as system of set inequalities where:
-
-\begin{itemize}
-	\item $p_i := \&a$ is $a \in p_i$ for $a$ scalar
-	\item $p_i := p_j$ is $p_j \subseteq p_i$
-\end{itemize}
-
-As there are only single level pointers, we are not allowed to take address of a
-pointer, and dereference always results in a scalar, which does not change any
-pointer.
-
-Now it's clear that when the algorithm exits, the solution is conservatively
-correct. Also, if $n$ and $v$ are finite, it will finish after at most $n \cdot
-v$ steps, as in each step at least one set will increase in size, and every set
-can have at most $v$ elements in.
-This gives us simple (not necessarily efficient) polynomial-time algorithm.
-
-Of course there is a problem that in practice we  do not have all the information.
-That may include external functions (possibly with side-effects), dynamically
-allocated memory and more obscure, possibly language-specific, features as for
-example pointer arithmetic. We will ignore these now for simplicity, and
-deal with them later. \TODO{Reference.}
-
-\subsubsection{Multi-level pointers}
-
-Things start to be difficult when multi-level pointers come in play. 
-\TODO{Proof.}
-
-\subsection{Known algorithms and approaches}
-
-During the years a few algorithmic approaches have been developed. Here is a
-quick overview of the strengths and weaknesses of those approaches.
-
-\subsubsection{Andersen's algorithm}
-
-Otherwise known as {\it inclusion-based} algorithm is based on direct
-mathematical representation of points-to sets, that is, a points-to set for a
-given pointer $p$ is a set $S_p$ containing all values pointer $p$ can point to.
-Further expressions are then translated into set inequalities, which are
-iteratively solved:
-
-\begin{itemize}
-	\item $p_i = \&a \quad \to \quad a \in p_i$
-	\item $p_i = p_j \quad \to \quad p_j \subseteq p_i$ 
-	\item $p_i = *p_j \quad \to \quad \forall p_k \in p_j : p_k \subseteq p_i$
-\end{itemize}
-
-It was published in his PhD thesis in 1994 [\TODO {ref}] and remains to be a
-popular algorithm to this day.
-
-
-\subsubsection{Steensgaard's algorithm}
-
-Is a {\it unification-based} algorithm, which means it partitions pointers into
-equivalence classes, and deems that two pointers alias iff they are in the same
-equivalence class.
-
-It was published in his article in 1996 [\TODO{ref}]. It is deemed to be very
-fast algorithm, though not as precise. However I know of no open implementation,
-as it is believed to be patented by Microsoft, and was removed from LLVM in 2006
-\TODO{REF: http://lists.llvm.org/pipermail/llvm-dev/2006-December/007557.html}
-
-
-\subsubsection{BDD-based algorithms}
-
-\TODO{Všechno.}
-
-
-\section{Current state in compilers}
-
-There are not many modern compilers with open code that can be examined and improved
-upon. One of the players is GCC, that has been around since 1985
-(1.x release was in 1991) and is the most widely used open source compiler
-today. The younger competitor is LLVM/Clang, first released in 2003. It's
-written in C++, is supported by Apple since 2005, and due to it's age has much
-mure modern design, and is generally deemed to be easier to extend and work
-with.
-
-There are much more compilers available, but most of them are proprietary or not
-maintained.
-
-Also, it is very hard to compare many of the published results, as the
-implementations are not public, and mostly implemented for compilers that are
-unable to keep up with current C/C++ standards and successfully build modern
-(and big) projects.
-
-A lot of researchers also focus on Java compiles and algorithms, and though many
-techniques can be used for C and C++, Java is very different language, in that
-it has JIT\footnote{Just In Time} compiler, and does not have pointers in the
-classic sense, only references. 
-
-\subsubsection{LLVM/Clang}
-
-As LLVM is very modular, it contains multiple alias analysis passes. 
-
-\begin{itemize}
-	\item {\bf -basic-aa} pass, providing local alias information using many
-		language-specific facts.
-	\item {\bf -scev-aa} pass, translation queries into Scalar Evolution queries
-		\TODO{WTF?}
-\end{itemize}
-
-Additionally, there are three passes in {\tt poolalloc} package:
-
-\begin{itemize}
-	\item {\bf -globalsmodref-aa} pass, providing context-sensitive alias
-		information for global variables
-	\item {\bf -steens-aa} pass, implementing Steensgaard's algorithm.
-	\item {\bf -ds-aa} pass, implementing unification-based Data Structure
-		analysis, providing context and field sensitive alias information.
-\end{itemize}
-
-\TODO{Are they interprocedural? steens probably is, but needs checking; more
-info on this here: http://llvm.org/docs/AliasAnalysis.html}
-
 
 \subsubsection{GCC}
 
 
 
-\section{Experimenting with GCC}
 
-As I previously noted, I will be focusing on the GCC compiler suite. In this
-section, I will cover the experimental setup, compile a few programs and extract
-some practical information on resources needed and anticipated use.
+\section{Compilation phases}
 
-The raw data gained in this chapter will not be published, as they tend to be
-rather large. I will however publish source code used to take these
-measurements, so anyone can reproduce these results, and perhaps use for
-comparison on his/her own work. I will also omit some technical details in this
-chapter, but will include them in the Appendix \TODO{link}.
+\TODO{je zapotřebí toto zmiňovat? možná raději napsat, jak funguje LTO}
 
-\subsection{The setup}
+Během překladu dochází k postupným změnám v reprezentaci dat, jak se program
+transformuje z jazyka frontendu do stále jednodušších jazyků, dokud nevznikne
+požadovaný spustitelný kód. Celkem dojde k několika fázím:
 
-\subsection{Compiler}
+\begin{enumerate}
+	\item Front End: Syntaktický analýza jazyka.
+	\item Middle End: Vysokoúrovňové transformace a optimalizace.
+	\item Back End: Nízkoúrovňové transformace a optimalizace.
+\end{enumerate}
 
-For further measurements, I will be using GCC compiled from branch {\tt
-gcc-5-branch} (via github.com mirror, but any up to date repository will
-suffice). The reason for this branch is simple: it's relatively fresh branch,
-that supports most of the latest features, but will not change during
-development and provide stable base for testing, while still receiving bug fixes
-for the time being.
+Během tohoto procesu je použito několik mezijazyků, které se dokonce mohou někdy
+míchat (to je běžné, pokud se právě převádí z vyššího jazyka na nižší). Zde je
+základní přehled, některé budou podrobněji rozepsány dále. Všechny používané
+jazyky jsou úzce svázány s objekterý, pomocí kterých jsou reprezentovány.
 
-This is especially important due to the fact that some newer releases have
-trouble compiling software like Firefox, which is essentil for some of my
-benchmarks. I could fix those, it isn't worth the trouble to do so, and the best
-performing code will be ported to the current master branch.
+\begin{description}
+	\item[GENERIC] Nejvyšší mezijazyk, dovoluje vyjádřit funkci jako strom, a
+		může obsahovat prakticky libovolná rozšíření specifická pro jazyk
+		front-endu.
+	\item[GIMPLE] Striktní verze jazyka GENERIC, speciálně každý výraz již smí
+		obsahovat nanejvýš 3 operandy.
+	\item[RTL] Nízkoúrovňový jazyk, podobající se spíše strojovým instrukcím
+		cílové architektury. Obsahuje mimojiné jména registrů a práci se
+		zásobníkem.
+\end{description}
 
-Also, the GCC is non-bootstrapped, but compiled with a system-installed compiler
-of the same version, so there should be little to no performance hit. However,
-what comes with a performance hit are the benchmarking outputs themselves,
-though I will note the time spent in the benchmarking code if it's significant.
+\subsection{Front End}
 
-\subsection{Software under test}
+Front-end je v optimálním případě jediná část překladače, která zná informace o
+jazyce, jeho syntaxi, a omezeních. Může svoji funkci provádět různě, a taktéž se
+tak děje; nezávisle na tom však musí vydat reprezentaci, která je čitelná pro
+další fáze překladu. Tou může být přímo GIMPLE, nebo GENERIC, který se na GIMPLE
+převede.
 
-I have checked many opensource programs to pick some candidates, that could
-serve as test inputs. I had a few requirements, to make testing straightforward
-and reproducible:
+\subsection{Middle End: Vysokoúrovňové transformace a optimalizace}
 
-\begin{itemize}
-	\item Written in C++ (preferred) or C.
-	\item A good compatibility with current GCC versions (5.x and 6.x)
-	\item Flexible and robust build system.
-	\item Mid to large codebase.
-	\item Not too modular.
-\end{itemize}
-
-It's suprisingly difficult to find projects that fit all of those, but all of
-them are very important. Among others, I first considered well-known projects
-like Firefox, GIMP, Inkscape, MySQL and SQLite. I ruled out Inkscape and MySQL
-mostly due to the build system, as it required too much hacking to be worth.
-GIMP was pleasure to work with, but unfortunately consists of many plugins, and
-does not pose much challenge for the link-time optimizer, resource-wise.
-
-\TODO{SQLite}
-
-Firefox was an easy choice, as it's an established benchmark for GCC and though
-there were a few issues in the beginning, later versions are polished and
-fullfill all the requirements. There is only one problem, and that is it takes
-approximately 25-36 hours to compile firefox with non-modified GCC sources,
-which isn't very good for development. The main reason for this slowdown is
-excessive RAM usage, which doesn't allow parallel LTO pass.
-
-The specific version used in testing is {\it Firefox 47b1}.
-
-I chose a smaller C++ program to do development testing and data mining, an
-OpenStreetMap editor Merkaartor. It's quite not big as I'd like, but fullfills
-everything else, and I'm familar with the build system. 
-
-The specific version used in testing is {\it Merkaartor 0.18.3-rc1}
-
-\subsection{Other software and hardware}
-
-\subsubsection{Hardware}
-
-Where relevant, the following machine was used for testing:
-
-\begin{itemize}
-	\item Intel Xeon E3-1231-v3 @ 3.40GHz (Haswell)
-	\item 32GB DDR3 RAM @ 1600MHz, consisting of 4 modules KHX1600C10D3/8G
-	\item 120GB Intel 520 SSD, SSDSC2CW120A3
-\end{itemize}
-
-I consider this setup to be high-end for desktop computing, and much more than
-should be required. Other machines were used during testing, but all time
-results will be quoted for the one above.
-
-\subsubsection{Software}
-
-The system was running 64bit Linux kernel 4.5 and standard Gentoo Linux
-installation. 
-
-Memory and cpu usage measurements were taken using Linux Control Groups for
-whole compilation process, including GNU make and other tools. The data were
-sampled at 1 second intervals, which is more than enough. Total CPU usage is
-known precisely, as control groups keep cumulative counter. The activity at a
-given point is used only as a pointer as to how many cores are currently
-computing. As for the memory, the second interval is fine as well, as we are not
-allocating and freeing memory rapidly. In fact, most of our allocations will be
-done at the beginning of an analysis.
-
-More exact profiles were taken using the {\tt perf} tool. This gives us really
-good overview on what compilation phases take the most time, but unfortunately
-the data is too large and as of the date of writing, {\tt perf} wasn't able to
-process record longer than a few minutes, at reasonable sample rate.
-
-Plots and data analysis was done in R and GNUplot.
+Jakmile je získán od frontendu kód v GIMPLu, provádí se většina optimalizací.
+Dojde k rozdělení kódu na bloky a vybudování CFG (Control Flow Graph) mezi nimi,
+čištění kódu, propagace konstant a výrazů, zpracování dat z profilování,
