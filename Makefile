@@ -2,6 +2,8 @@ all: thesis.pdf
 
 # LaTeX must be run multiple times to get references right
 thesis.pdf: thesis.tex $(wildcard *.tex) bibliography.bib $(wildcard img/*.pdf) $(wildcard graphs/*/*.pdf)
+	make -C graphs/loc
+	make -C graphs/firefox-objsize
 	pdflatex $<
 	bibtex thesis
 	pdflatex $<
