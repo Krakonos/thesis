@@ -1,0 +1,51 @@
+\chapter{Misc stuff -- to be moved elsewhere}
+\section{Experimenting with GCC}
+
+As I previously noted, I will be focusing on the GCC compiler suite. In this
+section, I will cover the experimental setup, compile a few programs and extract
+some practical information on resources needed and anticipated use.
+
+The raw data gained in this chapter will not be published, as they tend to be
+rather large. I will however publish source code used to take these
+measurements, so anyone can reproduce these results, and perhaps use for
+comparison on his/her own work. I will also omit some technical details in this
+chapter, but will include them in the Appendix \TODO{link}.
+
+\subsection{The setup}
+
+\subsection{Compiler}
+
+For further measurements, I will be using GCC compiled from branch {\tt
+gcc-5-branch} (via github.com mirror, but any up to date repository will
+suffice). The reason for this branch is simple: it's relatively fresh branch,
+that supports most of the latest features, but will not change during
+development and provide stable base for testing, while still receiving bug fixes
+for the time being.
+
+This is especially important due to the fact that some newer releases have
+trouble compiling software like Firefox, which is essentil for some of my
+benchmarks. I could fix those, it isn't worth the trouble to do so, and the best
+performing code will be ported to the current master branch.
+
+Also, the GCC is non-bootstrapped, but compiled with a system-installed compiler
+of the same version, so there should be little to no performance hit. However,
+what comes with a performance hit are the benchmarking outputs themselves,
+though I will note the time spent in the benchmarking code if it's significant.
+
+\subsection{Software under test}
+
+I have checked many opensource programs to pick some candidates, that could
+serve as test inputs. I had a few requirements, to make testing straightforward
+and reproducible:
+
+\begin{itemize}
+	\item Written in C++ (preferred) or C.
+	\item A good compatibility with current GCC versions (5.x and 6.x)
+	\item Flexible and robust build system.
+	\item Mid to large codebase.
+	\item Not too modular.
+\end{itemize}
+
+It's suprisingly difficult to find projects that fit all of those, but all of
+them are very important. Among others, I first considered well-known projects
+like Firefox, GIMP, Inkscape, MySQL and SQLite. I ruled out Inkscape and MySQL
