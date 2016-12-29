@@ -109,3 +109,11 @@ programmers. It can also be adjusted at build time, for example it's possible
 to instruct GCC to create only one LTO partition\footnote{\tt --param
 lto-partitions=1}, in which case all the code is
 compiled at once.
+
+
+\begin{figure}[h!]
+	\label{figure-firefox-ipa-kpta}
+	\centering
+	\includegraphics{./graphs/firefox-ipa-kpta/firefox-ipa-kpta.pdf}
+	\caption{Building libxul.so with {\tt -fipa-kpta -flto=8}}
+\end{figure}
