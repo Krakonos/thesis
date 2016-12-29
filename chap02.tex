@@ -209,18 +209,24 @@ deal with them later. \TODO{Reference.}
 Things start to be difficult when multi-level pointers come in play. 
 \TODO{Proof.}
 
-\subsection{Known algorithms and approaches}
+\section{Known algorithms and approaches}
 
 During the years a few algorithmic approaches have been developed. Here is a
 quick overview of the strengths and weaknesses of those approaches.
 
-\subsubsection{Andersen's algorithm}
+\subsection{Type based algorithms (TBAA)}
 
-Otherwise known as {\it inclusion-based} algorithm is based on direct
-mathematical representation of points-to sets, that is, a points-to set for a
-given pointer $p$ is a set $S_p$ containing all values pointer $p$ can point to.
-Further expressions are then translated into set inequalities, which are
-iteratively solved:
+As the name suggests, they infer aliasing information from types and language
+rules. This is is especially useful in languges with strict aliasing rules, but
+rarely is more difficult than comparing those types using a set of rules. 
+
+\subsection{Andersen's algorithm}
+
+First published by Lars Ole Andersen \cite{Andersen94}, it is an {\it
+inclusion-based} algorithm is based on direct mathematical representation of
+aliases as points-to sets. That is, a points-to set for a given pointer $p$ is a
+set $S_p$ containing all locations pointer $p$ can point to.  Further
+expressions are then translated into set inequalities:
 
 \begin{itemize}
 	\item $p_i = \&a \quad \to \quad a \in p_i$
@@ -228,25 +234,54 @@ iteratively solved:
 	\item $p_i = *p_j \quad \to \quad \forall p_k \in p_j : p_k \subseteq p_i$
 \end{itemize}
 
-It was published in his PhD thesis in 1994 [\TODO {ref}] and remains to be a
-popular algorithm to this day.
+The solution to this set of inequalities gives the may-alias points-to
+solution. This representation also offers a simple algorithm for iterative
+solving, but no guarantee about memory requirements of time of completion.
+
+\subsection{Steensgaard's algorithm}
+
+Developed by Bjarne Steensgaard \cite{Steensgaard96}, it is  a {\it
+unification-based}, similar to Andersen's, but uses unification instead of
+subset contraints. It only needs to partition pointers into equavalence
+classes, which can be done in almost linear time. This leads to a very fast,
+well scalable algorithm, that sacrifices some precision.
+
+There is very little research utilizing unification-based algorithms, as it is
+believed to be patented by Microsoft, and was removed from LLVM in 2006
+\cite{LLVM:DSA:Remove}.
 
 
-\subsubsection{Steensgaard's algorithm}
+\section{Data structures}
 
-Is a {\it unification-based} algorithm, which means it partitions pointers into
-equivalence classes, and deems that two pointers alias iff they are in the same
-equivalence class.
+Especially in Adersen-style algorithms, the structure used is very important, as
+it needs to efficiently store potentially large sets and process set operations
+on them (mostly {\tt UNION} and {\tt INTERSECTION}).
 
-It was published in his article in 1996 [\TODO{ref}]. It is deemed to be very
-fast algorithm, though not as precise. However I know of no open implementation,
-as it is believed to be patented by Microsoft, and was removed from LLVM in 2006
-\TODO{REF: http://lists.llvm.org/pipermail/llvm-dev/2006-December/007557.html}
+In this section we will review several straightforward implementation and the
+use of bloom filters and binary decision diagrams.
 
+\TODO{Compare some naive representations}
 
-\subsubsection{BDD-based algorithms}
+\subsection{Bloom filters}
 
-\TODO{Všechno.}
+The use of Bloom filters was first proposed by Nasre et. al \cite{nasre2009}.
+They are very space efficient and perform well on certain operations, as is
+{\tt QUERY} and {\tt UNION}. Some implementation can also perform {\tt
+INTERSECTION}, but with decresed precision. The complete lack of {\tt
+ENUMERATION} was worked around by introducting multiple dimensions for
+multi-level pointers. In this scheme, a pointer could be easily dereferenced
+upto a constant depth and after that, the algorithm answers conservatively.
+
+We will revisit the use of Bloom filters in later chapters.
+
+\subsection{Binary decision diagrams based algorithms}
+
+A Binary decision diagram (BDD) is a data structure used to represent boolean
+functions. It can be easily extended to represet relations by encoding
+characteristic function of given relation, and the complete alias information as
+well. Multiple algorithms based on the BDDs were developed \cite{whaley2004},
+\cite{bddbddb}, but most of them lack public and usable code for further
+development.
 
 
 \section{Current state in compilers}
