@@ -4,6 +4,7 @@ all: thesis.pdf
 thesis.pdf: thesis.tex $(wildcard *.tex) bibliography.bib $(wildcard img/*.pdf) $(wildcard graphs/*/*.pdf)
 	make -C graphs/loc
 	make -C graphs/firefox-objsize
+	make -C graphs/firefox-ipa-kpta
 	pdflatex $<
 	bibtex thesis
 	pdflatex $<
