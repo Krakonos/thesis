@@ -1,4 +1,3 @@
-%\end{document}
 \newcommand{\definice}{\paragraph{Definice.}}
 
 \chapter{Compilation and optimization}
@@ -10,37 +9,77 @@ optimization framework.
 
 \section{Code organization and codebase size}
 
-Let us star by examining some of the code bases for programs we use every day.
+Let us start by examining some of the code bases for programs we use every day.
 A lot of developers run Linux, Firefox (or other browser) and GCC every day, but
-unless we're developing one of them, we don't really have an idea of how large
-they are. They are enormous, containing millions of lines of code and growing. 
-The chart in Figure \ref{figure-loc} show historical development over the past 10
-years.
+unless we're developing one of them, we don't really have a good idea of how large
+they are. It is not hard to guess they are enormous, containing millions of
+lines of code. But how many exactly, and how is the number growing?
+The chart in Figure \ref{figure-loc} show historical development over the past
+10 years.
 
 \begin{figure}[h!]
 \label{figure-loc}
 \centering
-\includegraphics{graphs/loc/loc.pdf}
+	\hspace{-1cm}\includegraphics{graphs/loc/loc.pdf}
 \caption{Codebase size of Firefox, Chrome and GCC over time. [Data provided by
 	openhub.net]}
 \end{figure}
 
-As if it weren't enough, almost all of the code gets compiled info a single
-binary, as seen in Figure \ref{figure-firefox-objsize}
+It might be tempting to say that the code will be split into many libraries. It
+is no secret that for example Firefox bundles many libraries inside, they might
+be compiled separately, resulting in many self-contained libraries in the
+distribution. Figure \ref{figure-firefox-objsize} shows 8 largest libraries
+contained in a standard Firefox distribution. The main library is 66.39 MB
+large, the second largest is only 1.51 MB. This is due to speed optimizations,
+as the developers noticed a significant start-up delay if all libraries are
+loaded separately, and bundled them together into a single library. This also
+means that compiler optimizing this library has to deal with all the code at
+included.
 
 \begin{figure}[h!]
 \label{figure-firefox-objsize}
 \centering
-\includegraphics[angle=-90]{graphs/firefox-objsize/objsize.pdf}
+\includegraphics[angle=-90,trim=0 30 10 0,clip]{graphs/firefox-objsize/objsize.pdf}
 \caption{Firefox 50.0.2 object sizes by binary}
+\end{figure}
+
+We should keep these numbers in mind while writing a compiler.
+
+\section{Program compilation}
+
+Only the simplest programs consist of a single source file, many programs have
+tens, hundreds or even thousands of source files. This not only serves an
+organizational purpose, but also allows the programmer to choose different
+optimization flags for different files, or even write different parts in
+different languages. A mechanism called {\sl separate compilation} is used to
+compile and combine (link) all of them together, to form a finished program.
+Figure \ref{figure-non-lto-workflow} shows the transformation using standard GCC
+and Binutils (compiler and linker).
+
+First step is to compile every  source file into object file. In this phase, a
+compiler is invoked and does all the work necessary to convert source code into
+binary, including code generation. The result is stored in an object file,
+including required metadata, for example symbol table. This step is independedt
+for each source file, so they can be processed in parallel. 
+
+Second step consists of simple linking. A linker inspects all generated objects,
+resolves required and provided symbols, dynamic libraris, and produces a
+final executable. The linker usually doesn't modify code in object files, as it
+only understands symbols and sections.
+
+\begin{figure}[h!]
+\label{figure-non-lto-workflow}
+\centering
+\includegraphics{./img/non-lto-workflow.pdf}
+\caption{Standard workflow for separate compilation}
 \end{figure}
 
 
 \section{Compilation phases}
 
-The ultimate goal of a compiler is to transform program written in a high-level
-programming language into a binary representation that the processor
-understands. The compiler usually has the following three components.
+To compile a program written in high-level programming language into a machine
+code requires many steps. To make orientation easy, and to support code
+re-usability, a compiler usually consists of these three parts:
 
 \paragraph{Front End} understands the input language, builts abstract syntax
 tree and converts in into a common intermedialy language (IL) to all front ends
@@ -67,3 +106,56 @@ the same time (usually during transition to the lower-level language).
 		machine code, containing algebraicly described instructions, as should
 		be generated.
 \end{description}
+
+
+\section{Link-time optimization}
+
+The LTO framework was proposed in 2005 [Ref:DraftLTO], [REF:DraftWHOPR] in
+order to improve on GCC's ability to do whole program optimizations.
+
+Programs are usually compiled separately, meaning every source file is compiled
+into it's own object file. All the object files are then linked together,
+forming the final binary. This is a good technique, as it not only allows
+logical grouping of code into files, but also change in one file does not force
+recompilation of all other files. On the other hand, it also means that
+optimizer only sees one file at a tim, and some optimizations might be hard or
+even impossible to do.
+
+One example might be devirtualization in C++. As the class it's descendants are
+usually in a separate file, the compiler has no way of knowing that there is
+only one possible virtual method, and devirtualize it. This often happens when
+using Mock objects\footnote{Objects that mimic some behavior, for example a
+piece of hardware} for testing.
+
+A small C program could be compiled all at once, but not necessarily a C++
+program. \TODO{says DraftLTO, but why?}. Some authors worked around this
+limitation. For example SQLite or older versions of KDE support code
+concatenation in their build system. This results in one huge source file being
+passed to the compiler. The result was good in it's day, but still has some
+issues. All the code needs to be parsed at once, which increases memory usage
+and does not scale well, as language parsers are not usually parallel, and thus
+cannot make use of multi processor system.
+
+\begin{figure}[h!]
+	\label{figure-lto-workflow}
+	\centering
+	\includegraphics{./img/lto-workflow.pdf}
+	\caption{Compiling source code into binary}
+\end{figure}
+
+The LTO framework (see Figure \ref{figure-lto-workflow}) solves these problems by keeping separate compilation, but
+instead of generating classical object files containing machine code, the
+middle end stops and writes GIMPLE representation into the object, including
+some metadata (for example the call graph).
+
+Instead of generating library, the linker then picks up the GIMPLE
+representation and invokes the compiler again, to do a WPA pass. In this phase,
+the object files are examined, a partial optimization plan in formed, and the
+code is partitioned into smaller pieces called {\sl LTO partitions}. The
+partitioning happens with regard to the code being optimized, for example to
+minimize cross-partition edges.
+
+Individual LTO partitions are then passed, separately and in parallel, to the
+compiler for LTRANS\footnote{Local TRANSformations} pass. The decisions made in
+
+
