@@ -1,12 +1,12 @@
 %\end{document}
 \newcommand{\definice}{\paragraph{Definice.}}
 
-\chapter{Link-time optimizations}
+\chapter{Compilation and optimization}
 
 In the beginning of this chapter, we will look into the composition of modern
 programs, their codebase size and organization. We will continue with an
-overview of compiler's workflow and introduce current LTO framework.
-
+overview of compiler's workflow, introduce optimization passses and link-time
+optimization framework.
 
 \section{Code organization and codebase size}
 
@@ -36,64 +36,34 @@ binary, as seen in Figure \ref{figure-firefox-objsize}
 \end{figure}
 
 
-
-\section{The process of compilation and optimization}
-
-
-\section{When to optimize?}
-
-Now that we have a good intuition on what the compiler has to do, it's time to
-think about when should the optimization happen.
-
-
-
-
-
-\subsubsection{GCC}
-
-
-
-
 \section{Compilation phases}
 
-\TODO{je zapotřebí toto zmiňovat? možná raději napsat, jak funguje LTO}
+The ultimate goal of a compiler is to transform program written in a high-level
+programming language into a binary representation that the processor
+understands. The compiler usually has the following three components.
 
-Během překladu dochází k postupným změnám v reprezentaci dat, jak se program
-transformuje z jazyka frontendu do stále jednodušších jazyků, dokud nevznikne
-požadovaný spustitelný kód. Celkem dojde k několika fázím:
+\paragraph{Front End} understands the input language, builts abstract syntax
+tree and converts in into a common intermedialy language (IL) to all front ends
+and the middle end.
 
-\begin{enumerate}
-	\item Front End: Syntaktický analýza jazyka.
-	\item Middle End: Vysokoúrovňové transformace a optimalizace.
-	\item Back End: Nízkoúrovňové transformace a optimalizace.
-\end{enumerate}
+\paragraph{Middle End} analyses the IL code and does most highlevel
+optimizations. This includes splitting the code into basic blocks, building a
+Control Flow Graph (CFG), dead code elimination, constant propagation, profile
+driven transformations and many others \TODO{Ref forward.}
 
-Během tohoto procesu je použito několik mezijazyků, které se dokonce mohou někdy
-míchat (to je běžné, pokud se právě převádí z vyššího jazyka na nižší). Zde je
-základní přehled, některé budou podrobněji rozepsány dále. Všechny používané
-jazyky jsou úzce svázány s objekterý, pomocí kterých jsou reprezentovány.
+\paragraph{Back End} converts IL code into machine code, optimizing on the
+lowest level, being able to schedule individual instructions and registers.
+
+During this process multiple intermediary languages are used, sometimes more at
+the same time (usually during transition to the lower-level language).
 
 \begin{description}
-	\item[GENERIC] Nejvyšší mezijazyk, dovoluje vyjádřit funkci jako strom, a
-		může obsahovat prakticky libovolná rozšíření specifická pro jazyk
-		front-endu.
-	\item[GIMPLE] Striktní verze jazyka GENERIC, speciálně každý výraz již smí
-		obsahovat nanejvýš 3 operandy.
-	\item[RTL] Nízkoúrovňový jazyk, podobající se spíše strojovým instrukcím
-		cílové architektury. Obsahuje mimojiné jména registrů a práci se
-		zásobníkem.
+	\item[GENERIC] is the highest-level IL used by the Front End, able to
+		represent syntax trees and language-specific features.
+	\item[GIMPLE] is tuple-based IL language, able to represent only simple
+		expressions common to all languages. It is unable to represent many
+		high-level constructs as for example loops.
+	\item[RTL] (Register Transfer Language) is a low level language similar to
+		machine code, containing algebraicly described instructions, as should
+		be generated.
 \end{description}
-
-\subsection{Front End}
-
-Front-end je v optimálním případě jediná část překladače, která zná informace o
-jazyce, jeho syntaxi, a omezeních. Může svoji funkci provádět různě, a taktéž se
-tak děje; nezávisle na tom však musí vydat reprezentaci, která je čitelná pro
-další fáze překladu. Tou může být přímo GIMPLE, nebo GENERIC, který se na GIMPLE
-převede.
-
-\subsection{Middle End: Vysokoúrovňové transformace a optimalizace}
-
-Jakmile je získán od frontendu kód v GIMPLu, provádí se většina optimalizací.
-Dojde k rozdělení kódu na bloky a vybudování CFG (Control Flow Graph) mezi nimi,
-čištění kódu, propagace konstant a výrazů, zpracování dat z profilování,
