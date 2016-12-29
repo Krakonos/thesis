@@ -1,5 +1,5 @@
 \chapter*{Preface}
-\addcontentsline{toc}{chapter}{Úvod}
+\addcontentsline{toc}{chapter}{Preface}
 
 %Dosavadní implementace alias analýzy v GCC je založena na článcích [Efficient
 %Field-sensitive pointer analysis for C" a "Ultra-fast Aliasing Analysis using
@@ -26,34 +26,34 @@ functions, and later into compilation units. This shields the programmer from
 unnecessary technical details of implementation, and allows him to concentrate on
 the actual work.
 
-Unfortunately, this is also true for the compiler, which is shielded from the
-implementation details. However in this case, the implementation details are not
-unnecessary and the compiler could do a better job if it knew.
+The same applies on the compiler, which is shielded from the implementation
+details. In this case it is a major disadvantage, as the compiler needs as much
+information as it can get, to generate better code.
 
 For a long time, most compilers worked on separate compilation units, and didn't
-really care about other units in terms of analysis.
+really care about other units in terms of analysis.  In the recent years
+compilers grew more capable and computing power of consumer-grade machines
+increased to the point where advanced optimizations could be performed even on
+very large programs.
 
-In the recent years, computing power of consumer-grade machines increased to the
-point where something could be done about it, even for some bigger programs.
-
-In 2009 the GCC merged LTO into version 4.5, which enables optimizations on the
-scope of all compilation units.
+In 2009, the GCC project merged link-time optimizer into version 4.5, which enables
+analysis and optimization on scope of all compilation units. This offers new
+opportunities for improvement, but also new challenges. Some of the existing
+algorithms can easily process whole programs, some have limitations, and some
+of them are just too slow and/or memory intesive to be used in production.
 
 The goal is to explore current link-time optimization techniques, identify a
 bottleneck, and improve upon it.
 
+We will introduce compilation and link-time optimization techniques in the
+first chapter, introduce Alias Analysis problem and it's possible solutions in
+the second chapter, with emphasis on practical use in current compilers. We
+will improve upon Andersen's inclusion-based algorithm in the third chapter, by
+using efficient data-structure derived from Bloom filters, sacrificing some
+precision for tractability, and compare the results with non-approximate
+solution using the same algorithm. In the last chapter we will provide
+documentation necessary to reproduce presented results.
 
-
-
-I will introduce link-time optimization techniques in the first chapter,
-introduce Alias Analysis problem and it's possible solutions in the second
-chapter, with emphasis on practical use in current compilers. I will improve
-upon Andersen's inclusion-based algorithm in the third chapter, by using
-efficient data-structure derived from Bloom filters, sacrificing some precision
-for tractability, and compare the results with non-approximate solution using
-the same algorithm. In the last chapter, I will compare my implementation with
-already available implementations in production compilers with respect to
-resource use during compilation and their usability for large programs.
 
 
 %Klasický přístup k překládání programů je založen na separaci kódu tak, že
