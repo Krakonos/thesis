@@ -1,22 +1,20 @@
 \chapter{From Bloom filters to Bloomaps}
 
-During dataflow analysis the datastructure is almost as important as the
-algorithm used. In the case of GCC, the structure chosen is a simple linked
-list. This works fine for small data, but not so well with large data.
+During points-to analysis the datastructure is almost as important as the
+algorithm used. In the case of GCC, the structure chosen is a hybrid of bitmap
+and a linked list. This works fine for small and dense data, but not so well
+with large data.
 
-It is easy to convert the algorithm to a better data structure, but what do we
-have to choose from? We already know the linked list can do all of that,
-tree-like data structures, hash tables and many others could do all of those
-things, but do the fit the profile of ideal data structure?
-
-We will start by examining the needs of a typical Andersen-style algorithm and
-comparing theoretical complexities of various well known data structures. In the
-rest of this chapter we will describe a new enhancement of bloom filters called
-Bloomaps.
+Converting to a better data structure is relatively easy task, but what data
+structures are available? We will start by examining the needs of a typical
+Andersen-style algorithm and comparing theoretical complexities of various well
+known data structures. In the rest of this chapter we will describe a new
+enhancement of bloom filters called Bloomaps, tailored specifically for the use
+in points-to analysis.
 
 \section{Requirements}
 
-We need a data structure holding sets of integers, that is compact nad has the
+We need a data structure holding sets of integers that is compact and has the
 following operations: {\tt INSERT}, {\tt QUERY}, {\tt INTERSECT} and {\tt
 ENUMERATE} and {\tt UNION}; each of them with a specific purpose:
 
@@ -32,19 +30,21 @@ ENUMERATE} and {\tt UNION}; each of them with a specific purpose:
 \end{itemize}
 
 In other words, the basic operations can be a bit slower, but we need a good and
-fast {\tt UNION}.
-
-There a few other considerations:
+fast {\tt UNION}. There are a few other considerations:
 
 \begin{itemize}
 	\item The {\tt UNION} will be called on the same pairs over and over again,
 		which means most of the elements will be already in both.
 	\item The average number of stored elements will be small, and the data sparse.
+	\item Some sets may grow very large, containing almost every
+		element possible.
+	\item Low memory overhead is required, as the number of sets is in the order
+		of number of elements inserted.
 \end{itemize}
 
 A simple bitmap is a straightforward solution, but the parseness make it
-unviable. Many tree-like structures will have problems with the intersections,
-as all the elements have to examined and deduplicated.
+unviable. Many tree-like structures will have problems with the intersections
+and union as all the elements have to examined and deduplicated.
 
 A natural choice is a bloom filter, which is compact and has a fast union. The
 compactness is a real treat, as we can go as far as to choose how much memory to
@@ -73,7 +73,9 @@ constant time, which is often possible).:
 \begin{itemize}
 	\item {\tt QUERY} in $\O(1)$ time.
 	\item {\tt INSERT} in $\O(1)$ time.
-	\item {\tt DELETE, ENUMERATE, RESIZE} not supported.
+	\item {\tt DELETE, ENUMERATE, RESIZE} not supported\footnote{Though there
+		are variations that support these oprations, only {\tt RESIZE} is usually
+		possible without drastic changes to the structure.}.
 	\item {\tt UNION} in $\O(m)$ time (bitwise OR).
 	\item {\tt INTERSECTION} in $\O(m)$ time (bitwise AND).
 \end{itemize}
