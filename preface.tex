@@ -26,9 +26,9 @@ functions, and later into compilation units. This shields the programmer from
 unnecessary technical details of implementation, and allows him to concentrate on
 the actual work.
 
-The same applies on the compiler, which is shielded from the implementation
-details. In this case it is a major disadvantage, as the compiler needs as much
-information as it can get, to generate better code.
+The same limits the scope of the compiler, which can not optimize beyond unit
+boundaries.  This is a major disadvantage as the compiler needs as much
+information as it can get to generate better code.
 
 For a long time, most compilers worked on separate compilation units, and didn't
 really care about other units in terms of analysis.  In the recent years
