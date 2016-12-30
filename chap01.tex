@@ -110,31 +110,33 @@ the same time (usually during transition to the lower-level language).
 
 \section{Link-time optimization}
 
-The LTO framework was proposed in 2005 [Ref:DraftLTO], [REF:DraftWHOPR] in
-order to improve on GCC's ability to do whole program optimizations.
+The idea of interprocedural and link-time optimization is old. One of the first ideas
+were published in 1970s \cite{Allen1974}, \cite{Allen1976}. It was already supported
+in MIPSPro\TODO{CITE}, which was later released in 2000 as Open64 under GNU GPL. The
+compiler suite LLVM supports link-time optimization by design, from their first
+release in 2002 \cite{lattner2002llvm}.
+
+GCC was late, as the link-time optimization framework was proposed in 2005
+[Ref:DraftLTO], [REF:DraftWHOPR] and released in 2009.
 
 Programs are usually compiled separately, meaning every source file is compiled
 into it's own object file. All the object files are then linked together,
 forming the final binary. This is a good technique, as it not only allows
 logical grouping of code into files, but also change in one file does not force
 recompilation of all other files. On the other hand, it also means that
-optimizer only sees one file at a tim, and some optimizations might be hard or
-even impossible to do.
+optimizer only sees one file at a time, and some optimizations might be hard or
+even impossible to do.  One example might be devirtualization in C++. As the
+class it's descendants are usually in a separate file, the compiler has no way
+of knowing that there is only one possible virtual method, and devirtualize it.
+This often happens when using Mock objects\footnote{Objects that mimic some
+behavior, for example a piece of hardware} for testing.
 
-One example might be devirtualization in C++. As the class it's descendants are
-usually in a separate file, the compiler has no way of knowing that there is
-only one possible virtual method, and devirtualize it. This often happens when
-using Mock objects\footnote{Objects that mimic some behavior, for example a
-piece of hardware} for testing.
-
-A small C program could be compiled all at once, but not necessarily a C++
-program. \TODO{says DraftLTO, but why?}. Some authors worked around this
-limitation. For example SQLite or older versions of KDE support code
-concatenation in their build system. This results in one huge source file being
-passed to the compiler. The result was good in it's day, but still has some
-issues. All the code needs to be parsed at once, which increases memory usage
-and does not scale well, as language parsers are not usually parallel, and thus
-cannot make use of multi processor system.
+Some authors worked around this limitation. For example SQLite or older versions
+of KDE support code concatenation in their build system. This results in one
+huge source file being passed to the compiler. The result was good in it's day,
+but still has some issues. All the code needs to be parsed at once, which
+increases memory usage and does not scale well, as language parsers are not
+usually parallel, and thus cannot make use of multi processor system.
 
 \begin{figure}[h!]
 	\label{figure-lto-workflow}
@@ -149,13 +151,15 @@ middle end stops and writes GIMPLE representation into the object, including
 some metadata (for example the call graph).
 
 Instead of generating library, the linker then picks up the GIMPLE
-representation and invokes the compiler again, to do a WPA pass. In this phase,
-the object files are examined, a partial optimization plan in formed, and the
-code is partitioned into smaller pieces called {\sl LTO partitions}. The
-partitioning happens with regard to the code being optimized, for example to
-minimize cross-partition edges.
+representation and invokes the compiler again. GCC was designed to perform most
+of the optimizations in parallel, and the process has been further split into
+two stages. The sequential WPA (Whole Program Analysis) stage and parallel
+LTRANS (Local TRANSformations) stage.
 
-Individual LTO partitions are then passed, separately and in parallel, to the
-compiler for LTRANS\footnote{Local TRANSformations} pass. The decisions made in
+\paragraph{WPA} stage performs declaration and type linking, and decision stage
+of interprodecural optimizations. It ends by partitioning the code into smaller
+pieces called {\sl LTO partitions}. The partitioning happens with regard to the
+code being optimized, for example to minimize cross-partition edges.
 
-
+\paragraph{LTRANS} stage then performs optimizations decided by WPA stage,
+followed by local optimizations and code generation.
