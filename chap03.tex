@@ -92,24 +92,24 @@ check for emptyness of intersection, which is hard to achieve.
 Although a bloom filter intersection easily computed with bitwise {\tt AND},
 it is rarely accurate. The basic properties are already understood:
 
-As proven by {\it Guo et. al.} [REF:Guo10], the probability that $BF(A\cap B) =
+As proven in \cite{bose2008false}, the probability that $BF(A\cap B) =
 BF(A) \cap BF(B)$ is:
 \begin{align}
 p = (1-1/m)^{k^2\cdot |A-A\cap B| \cdot |B - A\cap B|}
 \end{align}
 
 For set emptyness, we can further simplify the formula by separating two cases:
-$|A \cap B| > 0$ and $|A \cap B| = 0$. The first case is not interesting, the
-second one however is:
+$|A \cap B| > 0$ and $|A \cap B| = 0$. The second equality is interesting, as
+we would like to test for empty sets.
 
-Assuming that $A\cap B$ is empty, let's compute the probability that $BF(A) \cap
+Assuming that $|A\cap B| = 0$, let us compute the probability that $BF(A) \cap
 BF(B)$ is also empty.
 \begin{align}
 	p_{empty} = (1-1/m)^{k^2 \cdot |A| \cdot |B|}
 \end{align}
 
 Furthermore, if we use partitioned Bloom filters, Jeffrey and Steffan
-[REF:Jeffrey11] showed a slightly improved probability:
+[REF:Jeffrey11] showed a slightly improved bound:
 \begin{align}
 	p_{empty} = \left(1 - \left( 1 - {k \over m}\right)^{|A|\cdot |B|}\right)^k
 \end{align}
@@ -127,27 +127,41 @@ based on the time requirements.
 It's immediately clear that vanilla Bloom filter cannot provide list of it's
 possible elements, as for example the simplest filter holding $1$ elements and
 answering with false-positive probability $0.5$ would have to enumerate half the
-universe $U$.
+universe $U$, which may as well be impossible for $U=\N$.
 
 Besides the trivial queue-of-queries, there has been one attempt at constructing
 Bloom filter-like structure, that can list it's items, the Invertible Bloom
-Lookup Tables, by Michael T. Goodrich [REF:Goodrich11]. The problem of IBLT is
+Lookup Tables (IBLT), by Michael T. Goodrich \cite{goodrich:2011}. The problem of IBLT is
 that they have non-zero probability of being unable to produce a complete list
 of entries, and do not provide the advantages of classic Bloom filters, as a
 fast intersection and membership queries. This said, we will not attempt to use
-them, although they are perhaps an interesting structure for future work.
+them, although they are an interesting structure for future work and may find
+its use in other optimizers.
 
 Let us review in short the available methods:
 
-\paragraph{Enumerate entire universe.} This is possible for $U$ small enough
+\paragraph{Enumerate entire universe.} This is possible for small and dense
+universe, and appropriately sized filter. We don't have to keep extra data, but
+queries need to ask for every element in a universe. Even for almost empty
+filter, this approach takes $\O(|U|)$ time.
+
 \paragraph{Keep a Queue-of-queries for each filter.} Perhaps the most sensible
 way, if there are either few filters, or only a few elements in each filter.
-\paragraph{Keep a single Queue-of-queries for all filter.}
+This approach may fast insertion and query, though complexity of the
+Queue-of-queries structure needs to be taken into account and either we need to
+sacrifice more memory to store unsorted queue, or time to use a better data
+structure for the queue.
 
-Every one of these approaches has it's use case. We will provide a similar
-approach, suitable for relatively small, but possibly sparse universe, avoiding
-most of the overhead caused by queues-of-queries. This approach assumes that
-32bit integers are being stored, represeting large number of sets.
+Neither of these methods are good for our use, as our universe can be large
+(millions of lines of code), and the number of filters is about the same size as
+the universe. We introduce a new approach, a compromise between the two above.
+
+\paragraph{Keep a single Queue-of-queries for all filteris.}
+
+Assuming our universe is all 32 bit integers, we can store a bit array of every
+item ever inserted under 512 MB. This allows the universe to be relatively
+sparse (we can skip unused elements). Also the operations only need to perform
+$\O(1)$ extra work to write a new bit, which is reasonable.
 
 \section{Bloomaps and Families}
 
@@ -175,11 +189,9 @@ Furthermore, the Bloomaps and their families need to fulfill these conditions:
 		given hash.
 \end{itemize}
 
-Let's take a look on how these data structures might look in pseudocode (based
-on C++):
-
-
-\begin{verbatim}
+\begin{figure}[h!]
+\begin{tcolorbox}
+	\begin{lstlisting}[language=c++,tabsize=2]
 struct Bloomap {
     BloomapFamily f;
     int m,k,s;
@@ -194,29 +206,34 @@ struct BloomapFamily {
 
     hash_set universe;
 }
-\end{verbatim}
+\end{lstlisting}
+\end{tcolorbox}
+\caption{Bloomap and BloomapFamily prototypes}
+\end{figure}
 
 Where {\tt hash\_set} is some data structure capable of storing a set of
 elements from universe associated with a given hash. The naive C++ structure
 might be {\tt hash\_map<vector<universe\_type>>}.
 
-Before we get into technicalities, let's illustrate how {\tt INSERT} and {\tt
+Before we get into technicalities, let us illustrate how {\tt INSERT} and {\tt
 ENUMERATE} functions might be implemented:
 
-\begin{verbatim}
-function INSERT(bloomap,element) {
-    # Decompose element into offset, index_hash and data.
+\begin{figure}[h!]
+\begin{tcolorbox}
+\begin{lstlisting}[language=c++,tabsize=2]
+void Bloomap::INSERT(element) {
+    //Decompose element to offset, index_hash and data.
     (offset,index_hash,data) := element;
-    # Insert into side_index of a bloomap.
+    //Insert into side_index of a bloomap.
     index[index_hash] := true;
     for (i := 1..k) {
         partitions[i][hash(i,element) % m/k] := 1
     }
-    # Insert into universe index of a family
+    //Insert into universe index of a family
     f.universe[hash] += element;
 }
 
-function ENUMERATE(bloomap) {
+void Bloomap::ENUMERATE(bloomap) {
     list = ();
 	for (i := 1..s | index[i] == true) {
         for (element in f.universe[i] | element in bloomap) 
@@ -224,10 +241,14 @@ function ENUMERATE(bloomap) {
     }
     return list;
 }
-\end{verbatim}
+\end{lstlisting}
+\end{tcolorbox}
+\caption{Pseudocode for Bloomap::INSERT and Bloomap::ENUMERATE}
+\end{figure}
+
 
 Both of them are pretty straightforward, as {\tt INSERT} is a regular function
-for Bloom filter insertion, with the added partition fo side index and family
+for Bloom filter insertion, with the added partition for side index and family
 universe insertion.
 
 We might expect this to run in $\O(1)$, as it does for Bloom filters. Writing to
@@ -235,7 +256,7 @@ the index doesn't make it worse, but inserting into a universe might. Depending
 on the set implementation, we can expect additional $\O(\log n)$ for tree-based
 implementations or amortized $\O(1)$ for hash-based implementations. We probably
 can't do much better in generic case, but we will suggest a worst-case $\O(1)$
-for reasonable integers (dense sequence of ids starting from 0).
+for 32 bit integers (dense sequence of ids starting from 0).
 
 
 \subsection{Compact representation of dense integer universe}
@@ -247,8 +268,8 @@ to achieve less allocations and space efficiency.
 
 As mentioned above, we will split the value to {\tt offset}, {\tt hash} and {\tt
 data} at binary boundaries. This means we can simply concatenate the values to
-get the represented integer, and vice versa. We can now organize the data into
-{\it buckets} and {\it superbuckets} in the following way:
+get the represented integer. We can now organize the data into {\it buckets} and
+{\it superbuckets} in the following way:
 
 \begin{itemize}
 	\item Each offset has it's own {\it superbucket}.
@@ -256,18 +277,56 @@ get the represented integer, and vice versa. We can now organize the data into
 	\item Each {\it bucket} contains a bit for every {\tt data} value.
 \end{itemize}
 
-In this way a bit corresponding to an element can be easily found, and vice
-versa.
-
 \begin{center}
 	{\tt element = offset$\cdot$hash$\cdot$data} $\Leftrightarrow$
 	{\tt universe[offset$\cdot$hash].bit[data]}
 \end{center}
 
-
-\begin{figure}[h!]
-	\centering
+\begin{wrapfigure}{r}{0.5\textwidth}
 	\label{figure-bucketshop}
+	\hfill
 	\includegraphics{img/bucketshop.pdf}
 	\caption{Bucket and superbuckets in an array}
+	\vspace{1cm}
+\end{wrapfigure}
+
+The structure is illustrated in Figure \ref{figure-bucketshop} and pseudocode
+implementation in Figure \ref{figure-bucketshop-pseudocode}. Memory allocation
+is expected to be done automatically in {\tt vector} class and the array should
+be resized on first access beyond current boundary.  This allows the structure
+to occupy only as much memory as is necessary to store a set of size at most
+$\O(\max(E))$.
+
+\begin{figure}[h!]
+	\label{figure-bucketshop-pseudocode}
+\begin{tcolorbox}
+\begin{lstlisting}[language=c++,tabsize=2]
+struct superbucket {
+	uint64_t bits[];
+};
+
+struct universe_index {
+	vector<struct superbucket> superbuckets;
+};
+
+void universe_index::INSERT(offset, hash, data) {
+	superbuckets[offset]->bits[hash].bit[data] = 1;
+}
+
+vector<element> universe_index::ENUMERATE(hash) {
+	vector<element> candidates;
+	for (sb in superbuckets) {
+		for (i = 0 .. 63) {
+			if (sb->bits[hash].bit[i]) 
+				candidates.append(bit);
+		}
+	}
+	return candidates;
+}
+\end{lstlisting}
+\end{tcolorbox}
+\caption{Bucket and superbuckets prototype and pseudocode}
 \end{figure}
+
+
+
