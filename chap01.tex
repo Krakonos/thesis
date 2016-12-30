@@ -110,14 +110,13 @@ the same time (usually during transition to the lower-level language).
 
 \section{Link-time optimization}
 
-The idea of interprocedural and link-time optimization is old. One of the first ideas
-were published in 1970s \cite{Allen1974}, \cite{Allen1976}. It was already supported
-in MIPSPro\TODO{CITE}, which was later released in 2000 as Open64 under GNU GPL. The
-compiler suite LLVM supports link-time optimization by design, from their first
-release in 2002 \cite{lattner2002llvm}.
-
-GCC was late, as the link-time optimization framework was proposed in 2005
-[Ref:DraftLTO], [REF:DraftWHOPR] and released in 2009.
+The idea of interprocedural and link-time optimization (LTO) is old. One of the
+first ideas were published in 1970s \cite{Allen1974}, \cite{Allen1976}. It was
+already supported in MIPSPro in 1990s\TODO{CITE}, which was later released in 2000 as
+Open64 under GNU GPL. The compiler suite LLVM supports link-time optimization by
+design, from their first release in 2002 \cite{lattner2002llvm}.  GCC was late
+with their link-time optimization framework was proposed in 2005 [Ref:DraftLTO],
+[REF:DraftWHOPR] and released in 2009.
 
 Programs are usually compiled separately, meaning every source file is compiled
 into it's own object file. All the object files are then linked together,
