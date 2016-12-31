@@ -162,3 +162,100 @@ code being optimized, for example to minimize cross-partition edges.
 
 \paragraph{LTRANS} stage then performs optimizations decided by WPA stage,
 followed by local optimizations and code generation.
+
+
+\section{Evaluating GCC performance}
+
+As we previously noted, we will be focusing on the GCC compiler suite. In this
+section, we will cover the experimental setup, evaluate compile time in a few
+programs and extract practical information on resources needed and
+anticipated use.
+
+We will publish source code used to take these measurements, so anyone can
+reproduce these results, and perhaps use for comparison on his/her own work.We 
+will also omit some technical details in this chapter, but will include them in
+the Appendix \TODO{link}.
+
+\subsection{Compiler}
+
+For further measurements, we will be using GCC compiled from branch {\tt
+gcc-5-branch} (via github.com mirror, but any up to date repository will
+suffice). The reason for this branch is simple: it's relatively fresh branch,
+that supports most of the latest features, but will not change during
+development and provide stable base for testing, while still receiving bug fixes
+for the time being. Most of the benchmarking is non-intrusive but some involve
+large data dumps which may slow us down. This will be noted whenever appliccable.
+
+
+\subsection{Software under test}
+
+Many opensource programs are available for testing, however a good candidate has
+to fulfill a few requirements to make testing straightforward and reproducible.
+
+\begin{itemize}
+	\item Written in C++ (preferred) or C.
+	\item A good compatibility with current GCC versions (5.x and 6.x)
+	\item Flexible and robust build system.
+	\item Mid to large codebase.
+	\item Preferably monolithic binary.
+\end{itemize}
+
+It is surprisingly difficult to find projects that fit all of those
+requirements. Many popular programs were ruled out immediately. For example the
+build systems of MySQL and Inkscape is very inflexible and has trouble with LTO
+compilation. GIMP consists of many plugins which doesn't pose any challenge for
+the current link-time optimizer. However, a few others passed:
+
+\paragraph{Firefox} was an easy choice, as it is an established benchmark for GCC
+and though there were a few issues in the beginning, later versions are polished
+and fullfill all the requirements. There is only one problem, and that is it
+takes approximately 25-36 hours to compile firefox with non-modified GCC
+sources, which isn't very good for development. The main reason for this
+slowdown is excessive RAM usage, which doesn't allow parallel LTO pass.  
+The specific version used in testing is {\it Firefox 48}.
+
+\paragraph{Merkaartor} is an OpenStreetMap editor written in C++ with medium
+sized code-base. It utilizes Qt framework, a lot of C++ constructs and links
+plenty of objects into a single binary, and uses a lot of C++ constructs.
+
+\paragraph{SQLite} is a SQL database engine in a single source file with a
+medium (to small) sized code-base. It offers fast compilation times 
+
+The specific version used in testing is {\it Merkaartor 0.18.3-rc1}
+
+\subsection{Other software and hardware}
+
+\subsubsection{Hardware}
+
+Where relevant, the following machine was used for testing:
+
+\begin{itemize}
+	\item Intel Xeon E3-1231-v3 @ 3.40GHz (Haswell)
+	\item 32GB DDR3 RAM @ 1600MHz, consisting of 4 modules KHX1600C10D3/8G
+	\item 120GB Intel 520 SSD, SSDSC2CW120A3
+\end{itemize}
+
+I consider this setup to be high-end for desktop computing, and much more than
+should be required. Other machines were used during testing, but all time
+results will be quoted for the one above.
+
+\subsubsection{Software}
+
+The system was running 64bit Linux kernel 4.5 and standard Gentoo Linux
+installation. 
+
+Memory and cpu usage measurements were taken using Linux Control Groups for
+whole compilation process, including GNU make and other tools. The data were
+sampled at 1 second intervals, which is more than enough. Total CPU usage is
+known precisely, as control groups keep cumulative counter. The activity at a
+given point is used only as a pointer as to how many cores are currently
+computing. As for the memory, the second interval is fine as well, as we are not
+allocating and freeing memory rapidly. In fact, most of our allocations will be
+done at the beginning of an analysis.
+
+\begin{figure}[h!]
+	\label{figure-firefox-ipa-kpta}
+	\centering
+	\includegraphics{./graphs/firefox-ipa-kpta/firefox-ipa-kpta.pdf}
+	\caption{Building libxul.so with {\tt -fipa-kpta -flto=8}}
+\end{figure}
