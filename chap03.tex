@@ -15,18 +15,25 @@ in points-to analysis.
 \section{Requirements}
 
 We need a data structure holding sets of integers that is compact and has the
-following operations: {\tt INSERT}, {\tt QUERY}, {\tt INTERSECT} and {\tt
-ENUMERATE} and {\tt UNION}; each of them with a specific purpose:
+following operations.
 
 \begin{itemize}
-	\item The {\tt INSERT} operation is called only at the initialization.
-	\item The {\tt QUERY} operation is mostly called for a few special values,
-		and they can be handled separately, or at the end.
-	\item the {\tt INTERSECT} operation is called at the end, to answer alias
-		oracle queries.
-	\item The {\tt UNION} operation is called many times in each iteration, for
-		every dependency on a changed set.
-	\item The {\tt ENUMERATE} operation is called only on pointer dereference.
+	\item {\tt INSERT} -- inserts {\tt element} into {\tt set} and returns if
+		the structure has been changed by the insertion.
+	\item {\tt QUERY} -- checks if an {\tt element} is part of a {\tt set}.
+	\item {\tt INTERSECT\_EMTPY} -- checks if intersection of two sets is empty.
+	\item {\tt ENUMERATE} -- lists all elements in a {\tt set}
+	\item {\tt UNION} -- merge one {\tt set} into another.
+\end{itemize}
+
+The algorithm uses the following operations in the following way:
+
+\begin{itemize}
+	\item Initialization: {\tt INSERT} for every set.
+	\item Propagation: {\tt UNION} for every simple constraint, {\tt ENUMERATE} and
+		{\tt UNION} for dereferences.
+	\item Oracle queries: {\tt QUERY} for set membership, {\tt INTERSECT\_EMPTY}
+		.for set disjointness
 \end{itemize}
 
 In other words, the basic operations can be a bit slower, but we need a good and
@@ -34,23 +41,23 @@ fast {\tt UNION}. There are a few other considerations:
 
 \begin{itemize}
 	\item The {\tt UNION} will be called on the same pairs over and over again,
-		which means most of the elements will be already in both.
+		the difference will usually be in just a few elements.
 	\item The average number of stored elements will be small, and the data sparse.
-	\item Some sets may grow very large, containing almost every
-		element possible.
+	\item Some sets may grow very large, containing almost every element possible.
 	\item Low memory overhead is required, as the number of sets is in the order
 		of number of elements inserted.
 \end{itemize}
 
-A simple bitmap is a straightforward solution, but the parseness make it
+A simple bitmap is a straightforward solution, but the sparseness make it
 unviable. Many tree-like structures will have problems with the intersections
-and union as all the elements have to examined and deduplicated.
+and union as all the elements have to examined and deduplicated. Structures
+requiring pointers, storing element values or hashes do have large overhead.
 
-A natural choice is a bloom filter, which is compact and has a fast union. The
-compactness is a real treat, as we can go as far as to choose how much memory to
-invest and sacrifice the precision if we don't have enough. Unfortunately, its
-performance in {\tt INTERSECT} is rather suboptimal, and even worse, completely
-lacks the {\tt ENUMERATE} operation.
+A natural choice of the datastructure is a bloom filter. It is compact, has a
+fast union and allows us to choose how much memory to invest and sacrifice the
+precision if we don't have enough. Unfortunately, its performance in {\tt
+INTERSECT} is rather suboptimal, and even worse, completely lacks the {\tt
+ENUMERATE} operation.
 
 
 \section{Bloom filters}
@@ -58,7 +65,7 @@ lacks the {\tt ENUMERATE} operation.
 A bloom filter is a classical probabilistic data structure, invented by Burton
 Howard Bloom \cite{Bloom1970}. The goal is to provide a data structure
 that has some nonzero probability of {\it false-positive}, but zero probability
-of{\it false-negative}. This is accomplished by taking a bit field of $m$ bits,
+of {\it false-negative}. This is accomplished by taking a bit field of $m$ bits,
 $k$ hash functions, and hashing every element into $k$ different bits, writing
 $1$ on insertion, and checking if every position contains $1$ on query.
 
@@ -77,12 +84,12 @@ constant time, which is often possible).:
 		are variations that support these oprations, only {\tt RESIZE} is usually
 		possible without drastic changes to the structure.}.
 	\item {\tt UNION} in $\O(m)$ time (bitwise OR).
-	\item {\tt INTERSECTION} in $\O(m)$ time (bitwise AND).
+	\item {\tt BITWISE\_INTERSECTION} in $\O(m)$ time.
 \end{itemize}
 
-To be honest, the last one is bit of a lie, as it is not an intersection as one
-would expect. Let's denote $BF(A)$ as a bloom filter created from empty filter
-by inserting elements from $A$ one by one. Then:
+Unlike in simple bitmaps, bitwise intersection of bloom filters is not equal to
+set intersection.  Let's denote $BF(A)$ as a bloom filter created from empty
+filter by inserting elements from $A$ one by one. Then:
 
 For $A,B$ it does not hold that $BF(A \cap B) = BF(A) \cap
 BF(B)$. Unfortunately, even the inequality $BF(A \cap B) \subseteq BF(A) \cap
