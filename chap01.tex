@@ -253,28 +253,52 @@ allocations will be done at the beginning of an analysis.
 
 \subsection{Compiling Firefox with LTO and IPA PTA}
 
-Firefox in a standard configuration can be compiled within minutes. Introducing
-link-time optimization prolongs the time sinigificantly. Firefox compilation on
-a standard 8-core system with 32 GB RAM (though not all of it was available for the
-actual work) ends abruptly due to insufficient RAM. See Figure
-\ref{figure-firefox-ipa-pta-lto8} for details: each drop in utilized CPU cores
-shows a moment where one LTO process was killed by the kernel on OOM condition
-(or finished successfully in later phases). This issue is remedied by running
-only 2 processes concurrently (see Figure \ref{figure-firefox-ipa-pta-lto2}).
-However even in this setup the compiler used more than 27 GB.
+Firefox in a standard configuration can be compiled within minutes, see Figure
+\ref{figure-firefox-nolto} for a graph of the whole compilation (not only the
+libxul.so). The dip in CPU cores used around 16th minute is the linker for
+libxul.so being invoked, the following spike is a parallel compilation of a few
+unit tests and miscellaneous parts.
 
 \begin{figure}[h!]
+	\label{figure-firefox-nolto}
+	\centering
+	\includegraphics{./graphs/firefox-nolto/firefox-ipa-pta.pdf}
+	\caption{Compiling firefox without LTO}
+\end{figure}
+
+Adding LTO to the mix results in slightly longer compile time, but most of the
+time is spent during the LTO phase of libxul.so, which is plotted separately in
+Figure \ref{figure-firefox-lto8}.
+
+Enabling the interprocedural alias analysis pass causes the compilation to end
+abruptly due to insufficient RAM.  See Figure \ref{figure-firefox-ipa-pta-lto8}
+for details: each drop in utilized CPU cores shows a moment where one LTO
+process was killed by the kernel on OOM condition (or finished successfully in
+later phases). This issue is remedied by running only 2 processes concurrently
+(see Figure \ref{figure-firefox-ipa-pta-lto2}).  However even in this setup the
+compiler used more than 27 GB RAM and it took around 18 hours to complete.
+
+
+\begin{figure}
+\begin{subfigure}[b]{\textwidth}
+	\label{figure-firefox-lto8}
+	\centering
+	\includegraphics{./graphs/firefox-lto8/firefox-ipa-pta.pdf}
+	\caption{libxul.so with {\tt -flto=8}}
+\end{subfigure}
+\begin{subfigure}[b]{\textwidth}
 	\label{figure-firefox-ipa-pta-lto8}
 	\centering
 	\includegraphics{./graphs/firefox-ipa-pta-lto8/firefox-ipa-pta.pdf}
-	\caption{Building libxul.so with {\tt -fipa-pta -flto=8}}
-\end{figure}
-
-\begin{figure}[h!]
+	\caption{libxul.so with {\tt -fipa-pta -flto=8}}
+\end{subfigure}
+\begin{subfigure}[b]{\textwidth}
 	\label{figure-firefox-ipa-pta-lto2}
 	\centering
 	\includegraphics{./graphs/firefox-ipa-pta-lto2/firefox-ipa-pta.pdf}
-	\caption{Building libxul.so with {\tt -fipa-pta -flto=2}}
+	\caption{libxul.so with {\tt -fipa-pta -flto=2}}
+\end{subfigure}
+\caption{Compiling Firefox/libxul.so with differen optimization options}
 \end{figure}
 
 \subsection{Profiling GCC}
