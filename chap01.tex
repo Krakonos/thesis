@@ -3,36 +3,35 @@
 \chapter{Compilation and optimization}
 
 In this chapter, we will discuss the composition of modern
-programs, their codebase size and organization. We will continue with an
-overview compilation stages, introduce optimization passses and link-time
+programs, organization and size of their code-base. We will continue with an
+overview of compilation stages, introduce optimization passses and link-time
 optimization framework.
 
-\section{Code organization and codebase size}
+\section{Code-base organization and size}
 
-Let us start by examining some of the code bases for programs we use every day.
-A lot of developers run Linux, Firefox (or other browser) and GCC, but
-unless we're developing one of them, we don't really have a good idea of how large
-they are. The chart in Figure \ref{figure-loc} show historical development over
-the past 10 years.
+Let us start by examining some of the code-bases for programs we use every day.
+Many developers run Linux, Firefox (or other browser) and GCC, but
+unless they are developing one of them, they do not really have a good idea of how large
+they are. The chart in Figure \ref{figure-loc} show historical development of
+code-base size over the past 10 years for selected projects.
 
 \begin{figure}[h!]
 \label{figure-loc}
 \centering
 	\hspace{-1cm}\includegraphics{graphs/loc/loc.pdf}
-\caption{Codebase size of Firefox, Chrome and GCC over time. [Data provided by
-	openhub.net]}
+\caption{Codebase size of Firefox, Chrome and GCC over time. \TODO{citace
+	openhub.net}}
 \end{figure}
 
 It might be tempting to say that the code will be split into many libraries. It
-is no secret that for example Firefox bundles many libraries inside, they might
-be compiled separately, resulting in many self-contained libraries in the
-distribution. Figure \ref{figure-firefox-objsize} shows 8 largest libraries
-contained in a standard Firefox distribution. The size of main library is 66.39
-MB, while the second largest is only 1.51 MB. This is due to speed optimizations, as
-the developers noticed a significant start-up delay if all libraries are
-loaded separately, and bundled them together into a single library. This also
-means that compiler optimizing this library has to deal with all the code at
-included.
+is no secret that, for example, Firefox bundles many libraries inside. They
+could be compiled into separate dynamic libraries, and linked at runtime. Figure
+\ref{figure-firefox-objsize} shows 8 largest libraries contained in a standard
+Firefox distribution. The size of main library is 66.39 MB, while the second
+largest is only 1.51 MB. This is due to speed optimizations, as the developers
+noticed a significant start-up delay if all libraries are loaded separately, and
+bundled them together into a single library. This also means that compiler
+optimizing this library has to deal with all the code at included.
 
 \begin{figure}[h!]
 \label{figure-firefox-objsize}
@@ -41,11 +40,13 @@ included.
 \caption{Firefox 50.0.2 object sizes by binary}
 \end{figure}
 
-We should keep these numbers in mind while designing a compiler.
+We should keep these numbers in mind while designing a compiler. Compiler has
+to keep up with the enormous code-base growth of projects, adding around 2
+millions of lines of code each year.
 
 \section{Program compilation}
 
-Only the simplest programs consist of a single source file, many programs have
+Only the simplest programs consist of a single source file. Many programs have
 tens, hundreds or even thousands of source files. This not only serves an
 organizational purpose, but also allows the programmer to choose different
 optimization flags for different files, or even write different parts in
@@ -54,15 +55,16 @@ compile and combine (link) all of them together, to form a finished program.
 Figure \ref{figure-non-lto-workflow} shows the transformation using standard GCC
 and Binutils (compiler and linker).
 
-First step is to compile every  source file into object file. In this phase, a
-compiler is invoked and does all the work necessary to convert source code into
-binary, including code generation. The result is stored in an object file,
-including required metadata, for example symbol table. This step is independedt
-for each source file, so they can be processed in parallel. 
+In this traditional model, first step is to compile every  source file into
+object file. In this phase, a compiler is invoked and does all the work
+necessary to convert source code into binary, including code generation. The
+result is stored in an object file, including required metadata, for example,
+symbol table. This step is independent for each source file, so they can be
+processed in parallel. 
 
-Second step consists of simple linking. A linker inspects all generated objects,
+Second step consists of linking. The linker inspects all generated objects,
 resolves required and provided symbols, dynamic libraris, and produces a
-final executable. The linker usually doesn't modify code in object files, as it
+final executable. The linker usually does not modify code in object files, as it
 only understands symbols and sections.
 
 \begin{figure}[h!]
@@ -75,18 +77,18 @@ only understands symbols and sections.
 
 \section{Compilation phases}
 
-To compile a program written in high-level programming language into a machine
+To compile a program written in a high-level programming language into a machine
 code requires many steps. To make orientation easy, and to support code
-re-usability, a compiler usually consists of these three parts:
+re-usability, a compiler usually consists of the following parts:
 
 \paragraph{Front End} parses the input language, builts abstract syntax
 tree and converts it into a common intermediate language (IL) to all front ends
 and the middle end.
 
-\paragraph{Middle End} analyses the IL code and performs most highlevel
-optimizations. This includes splitting the code into basic blocks, building a
-control flow graph, dead code elimination, constant propagation, profile
-driven transformations and many others \TODO{Ref forward.}
+\paragraph{Middle End} analyses the program represented in IL and performs most
+highlevel optimizations. This includes splitting the code into basic blocks,
+building a callgraph and control flow graph. Various optimizations are then
+performed.
 
 \paragraph{Back End} converts IL code into machine code, optimizing on the
 lowest level, being able to schedule individual instructions and registers.
@@ -99,7 +101,7 @@ the same time (usually during transition to the lower-level language).
 		represent syntax trees and language-specific features.
 	\item[GIMPLE] is tuple-based IL language, able to represent only simple
 		expressions common to all languages. It is unable to represent many
-		high-level constructs as for example loops.
+		high-level constructs, for example, loops.
 	\item[RTL] (Register Transfer Language) is a low level language similar to
 		machine code, containing algebraicly described instructions, as should
 		be generated.
@@ -108,17 +110,12 @@ the same time (usually during transition to the lower-level language).
 
 \section{Link-time optimization}
 
-Programs are usually compiled separately, meaning every source file is compiled
-into it's own object file. All the object files are then linked together,
-forming the final binary. This is a good technique, as it not only allows
-logical grouping of code into files, but also change in one file does not force
-recompilation of all other files. On the other hand, it also means that
-optimizer only sees one file at a time, and some optimizations might be hard or
-even impossible to do.  One example might be devirtualization in C++. As the
-class it's descendants are usually in a separate file, the compiler has no way
-of knowing that there is only one possible virtual method, and devirtualize it.
-This often happens when using Mock objects\footnote{Objects that mimic some
-behavior, for example a piece of hardware} for testing.
+The scope limitation imposed by separate compilation is a major block for many
+optimizations. One example is devirtualization in C++. As the class it's
+descendants are usually in a separate file, the compiler has no way of knowing
+that there is only one possible virtual method, and devirtualize it.  This often
+happens when using Mock objects\footnote{Objects that mimic some behavior, for
+example a piece of hardware} for testing.
 
 The idea of interprocedural and link-time optimization (LTO) is old. 
 It was already discusses in literature in 1970s \cite{Allen:1974,Allen:1976}.
@@ -129,10 +126,10 @@ release in 2002 \cite{lattner2002llvm}.  GCC was late with their link-time
 optimization framework was proposed in 2005 \cite{gcclto,briggs2007whopr} and
 released in 2009.
 
-Some authors worked around this limitation. For example SQLite or older versions
+Some developers worked around this limitation. For example, SQLite or older versions
 of KDE support code concatenation in their build system. This results in one
-huge source file being passed to the compiler. The result was good in it's day,
-but still has some issues. All the code needs to be parsed at once, which
+huge source file being passed to the compiler. The result was good in its day,
+but still had some issues. All the code needs to be parsed at once, which
 increases memory usage and does not scale well, as language parsers are not
 usually parallel, and thus cannot make use of multi processor system.
 
@@ -166,56 +163,47 @@ followed by local optimizations and code generation.
 \section{Evaluating GCC performance}
 
 As we previously noted, we will be focusing on the GCC compiler suite. In this
-section, we will cover the experimental setup, evaluate compile time in a few
-programs and extract practical information on resources needed and
-anticipated use.
-
-The source code used to take these measurements is available online, allowing
-others to reproduce result presented and use it in future work.
-
-We also omit some technical details in this chapter, which will be discussed in
-Appendix \TODO{link}.
+section, we will cover the experimental setup, evaluate compile time in selected
+programs and extract practical information on resources needed and anticipated
+use.  The source code used to take these measurements is available online (See
+\TODO{ref}, allowing others to reproduce results presented and use it in future
+work.  
 
 \subsection{Compiler}
 
-For further measurements, we will be using GCC compiled from branch {\tt
-gcc-5-branch} (via github.com mirror, but any up to date repository will
-suffice). The reason for this branch is simple: it's relatively fresh branch,
-that supports most of the latest features, but will not change during
-development and provide stable base for testing, while still receiving bug fixes
-for the time being. Most of the benchmarking is non-intrusive but some involve
-large data dumps which may slow us down. This will be noted whenever appliccable.
-
+For further measurements, we will the 5.3 release of GCC. This release is
+relatively fresh, supports most of the latest features, but will not change
+during the development. It will provide stable base for testing, while still
+receiving bug fixes for the time being. 
 
 \subsection{Software under test}
 
-Many opensource programs are available for testing, however a good candidate has
-to fulfill a few requirements to make testing straightforward and reproducible.
+Several opensource programs are available for testing, however a good candidate has
+to be selected in order to make testing straightforward and reproducible.
 We will choose testing applications based on the following criteria:
 
 \begin{itemize}
-	\item Written in C++ (preferred) or C.
-	\item A good compatibility with current GCC versions (5.x and 6.x)
-	\item Flexible and robust build system.
-	\item Mid to large codebase.
-	\item Preferably large monolithic binary.
+	\item written in C++ (preferred) or C,
+	\item good compatibility with current GCC versions (5.x and 6.x),
+	\item flexible and robust build system,
+	\item mid to large codebase,
+	\item and preferably large monolithic binary.
 \end{itemize}
 
 It is surprisingly difficult to find projects that fit all of those
-requirements. Many popular programs were ruled out immediately. For example the
-build systems of MySQL and Inkscape is very inflexible and has trouble with LTO
-compilation. GIMP consists of many plugins which doesn't pose any challenge for
-the current link-time optimizer. The following applications were used in this
-work.
+requirements. For example the build systems of MySQL and Inkscape is very
+inflexible and has trouble with LTO compilation. GIMP consists of many plugins
+which does not pose any challenge for the current link-time optimizer. The
+following applications were used in this work.
 
-\paragraph{Firefox} was an easy choice, as it is an established benchmark for
-GCC \cite{glek2010}
+\paragraph{Firefox} is already an established benchmark for GCC \cite{glek2010}
 and though earlier versiond were difficult to build with LTO, recent versions
 are polished and fullfill all the requirements. Is is the largest test case and
 though it takes only a few minutes to compile in standard setup, the time can be
 raised to many hours with certain optimizations enabled. We will discuss this in
-more detail later in this chapter\TODO{ref}. The specific version used in
-testing is {\it Firefox 48}.
+more detail later in Section \ref{section-firefox-lto-pta}. Besides the size,
+the codebase is also divers and makes use of modern C++ constructs. The specific
+version used in testing is {\it Firefox 48}.
 
 \paragraph{Merkaartor} is an OpenStreetMap editor written in C++ with medium
 sized code-base. It utilizes Qt framework, a lot of C++ constructs and links
@@ -223,9 +211,9 @@ plenty of objects into a single binary, and uses a lot of C++ constructs.  The
 specific version used in testing is {\it Merkaartor 0.18.3-rc1}
 
 \paragraph{SQLite} is a SQL database engine in a single source file with a
-medium (to small) sized code-base. It is the simplest of all three and doesn't
+medium (to small) sized code-base. It is the simplest of all three and does not
 offer much challenge for the optimizer, but offers very quick turn time as well
-as an easy entry point for testcase minimization. The specifict version used in
+as an easy entry point for testcase minimization. The specific version used in
 testing is {\it SQLite 3.8.7.4}.
 
 \subsection{Experimental setup}
@@ -234,7 +222,7 @@ Where relevant, the following machine was used for testing:
 
 \begin{itemize}
 	\item Intel Xeon E3-1231-v3 @ 3.40GHz (Haswell)
-	\item 32GB DDR3 RAM @ 1600MHz, consisting of 4 modules KHX1600C10D3/8G
+	\item 32GB DDR3 RAM @ 1600MHz, 4 modules KHX1600C10D3/8G
 	\item 120GB Intel 520 SSD, SSDSC2CW120A3
 \end{itemize}
 
@@ -243,7 +231,7 @@ should be required for regular development.
 
 The system was running 64bit Linux kernel 4.5 and standard Gentoo Linux
 installation. Memory and CPU usage measurements were taken using Linux Control
-Groups for whole compilation process, including GNU make and other tools. The
+Groups \TODO{cite} for whole compilation process, including GNU make and other tools. The
 data were sampled at 1 second intervals, which is more than enough. Total CPU
 usage is known precisely, as control groups keep cumulative counter. The
 activity at a given point is used only as a pointer as to how many cores are
@@ -252,11 +240,12 @@ we are not allocating and freeing memory rapidly. In fact, most of our
 allocations will be done at the beginning of an analysis.
 
 \subsection{Compiling Firefox with LTO and IPA PTA}
+\label{section-firefox-lto-pta}
 
-Firefox in a standard configuration can be compiled within minutes, see Figure
+Firefox, in a standard configuration, can be compiled within minutes. See Figure
 \ref{figure-firefox-nolto} for a graph of the whole compilation (not only the
-libxul.so). The dip in CPU cores used around 16th minute is the linker for
-libxul.so being invoked, the following spike is a parallel compilation of a few
+{\tt libxul.so}). The dip in CPU cores used around 16th minute is the linker for
+{\tt libxul.so} being invoked, the following spike is a parallel compilation of a few
 unit tests and miscellaneous parts.
 
 \begin{figure}[h!]
@@ -266,9 +255,9 @@ unit tests and miscellaneous parts.
 	\caption{Compiling firefox without LTO}
 \end{figure}
 
-Adding LTO to the mix results in slightly longer compile time, but most of the
-time is spent during the LTO phase of libxul.so, which is plotted separately in
-Figure \ref{figure-firefox-lto8}.
+Enabling LTO results in slightly longer compile time, but most of the time is
+spent during the LTO phase of {\tt libxul.so}, which is plotted separately in Figure
+\ref{figure-firefox-lto8}.
 
 Enabling the interprocedural alias analysis pass causes the compilation to end
 abruptly due to insufficient RAM.  See Figure \ref{figure-firefox-ipa-pta-lto8}
@@ -278,38 +267,52 @@ later phases). This issue is remedied by running only 2 processes concurrently
 (see Figure \ref{figure-firefox-ipa-pta-lto2}).  However even in this setup the
 compiler used more than 27 GB RAM and it took around 18 hours to complete.
 
-
 \begin{figure}
 \begin{subfigure}[b]{\textwidth}
 	\label{figure-firefox-lto8}
 	\centering
 	\includegraphics{./graphs/firefox-lto8/firefox-ipa-pta.pdf}
-	\caption{libxul.so with {\tt -flto=8}}
+	\caption{{\tt libxul.so} with {\tt -flto=8}}
 \end{subfigure}
 \begin{subfigure}[b]{\textwidth}
 	\label{figure-firefox-ipa-pta-lto8}
 	\centering
 	\includegraphics{./graphs/firefox-ipa-pta-lto8/firefox-ipa-pta.pdf}
-	\caption{libxul.so with {\tt -fipa-pta -flto=8}}
+	\caption{{\tt libxul.so} with {\tt -fipa-pta -flto=8}}
 \end{subfigure}
 \begin{subfigure}[b]{\textwidth}
 	\label{figure-firefox-ipa-pta-lto2}
 	\centering
 	\includegraphics{./graphs/firefox-ipa-pta-lto2/firefox-ipa-pta.pdf}
-	\caption{libxul.so with {\tt -fipa-pta -flto=2}}
+	\caption{{\tt libxul.so} with {\tt -fipa-pta -flto=2}}
 \end{subfigure}
-\caption{Compiling Firefox/libxul.so with differen optimization options}
+\caption{Compiling {\tt libxul.so} with different optimization options}
 \end{figure}
 
 \subsection{Profiling GCC}
 
-To see what areas of GCC are worth improving, we used {\tt perf} to record usage
-statistics for various GCC functions. Figure \TODO{ref} shows top 20 used
-functions during LTO phase.
+To see what areas of GCC are worth improving, we used {\tt perf} \TODO{cite} to record usage
+statistics for various GCC functions. Figure \ref{table-profile-lto} shows top 20 used
+functions during LTO phase. It is not surprising to see a lot of {\tt bitmap\_*}
+functions, as a lot of passes use bitmaps for computations and storing results.
+Enabling interprocedural points-to analysis (IPA-PTA, {\tt -fipa-pta}) shows drastically
+different results, with functions {\tt bitmap\_ior\_into} and {\tt
+bitmap\_elt\_ior} taking almost all the CPU time. This clearly shows the IPA-PTA
+pass could benefit from bitmap and/or algorithm optimizations.
 
-
-
+\begin{table}
+\label{table-profile-lto}
+\centering
 \noindent\input{./tables/report-noextra.txt.tex}
+\caption{{\tt perf} profile with {\tt -flto}}
+\end{table}
+
+\begin{table}
+\label{table-profile-lto-pta}
+\centering
+\noindent\input{./tables/report-pta.txt.tex}
+\caption{{\tt perf} profile with {\tt -flto -fipa-pta}}
+\end{table}
 
 
 

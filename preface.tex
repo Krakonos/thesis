@@ -24,17 +24,15 @@
 As soon as programs started their growth, it became necessity to split them into
 functions, and later into compilation units. This shields the programmer from
 unnecessary technical details of implementation, and allows him to concentrate on
-the actual work.
+the actual work. The same limits the scope of the compiler, which can not
+optimize beyond unit boundaries.  This is a major disadvantage as the compiler
+needs as much information as it can get to generate better code.
 
-The same limits the scope of the compiler, which can not optimize beyond unit
-boundaries.  This is a major disadvantage as the compiler needs as much
-information as it can get to generate better code.
-
-For a long time, most compilers worked on separate compilation units, and didn't
-really care about other units in terms of analysis.  In the recent years
-compilers grew more capable and computing power of consumer-grade machines
-increased to the point where advanced optimizations could be performed even on
-very large programs.
+For a long time, most compilers worked on separate compilation units, and did not
+really care about other units in terms of analysis.  However  thecompilers grow
+more capable each year, as does the computing power of consumer-grade machines.
+We have reached the point where advanced optimizations could be performed even
+on very large programs.
 
 In 2009, the GCC project merged link-time optimizer into version 4.5, which enables
 analysis and optimization on scope of all compilation units. This offers new
@@ -42,17 +40,17 @@ opportunities for improvement, but also new challenges. Some of the existing
 algorithms can easily process whole programs, some have limitations, and some
 of them are just too slow and/or memory intesive to be used in production.
 
-The goal is to explore current link-time optimization techniques, identify a
-bottleneck, and improve upon it.
+The goal of this thesis is to explore current link-time optimization
+techniques, identify a bottleneck, and improve upon it. 
 
-We will introduce compilation and link-time optimization techniques in the
-first chapter, introduce Alias Analysis problem and it's possible solutions in
-the second chapter, with emphasis on practical use in current compilers. We
-will improve upon Andersen's inclusion-based algorithm in the third chapter, by
-using efficient data-structure derived from Bloom filters, sacrificing some
-precision for tractability, and compare the results with non-approximate
-solution using the same algorithm. In the last chapter we will provide
-documentation necessary to reproduce presented results.
+This thesis is organized as follows: We introduce compilation and link-time
+optimization techniques in the first chapter, introduce Alias Analysis problem
+and it's possible solutions in the second chapter, with emphasis on practical
+use in current compilers. We improve upon Andersen's inclusion-based algorithm
+in the third chapter, by using efficient data-structure derived from Bloom
+filters, sacrificing some precision for tractability, and compare the results
+with non-approximate solution using the same algorithm. In the last chapter we
+provide documentation necessary to reproduce presented results.
 
 
 

@@ -1,16 +1,21 @@
 \chapter{Alias Analysis}
 
-The goal of Alias Analysis is to determine the ways a memory location can be
-accessed. In the language C, a location is usually accessed by its name or a
-pointer. Disambiguating two accesses is necessary for many optimizations, but
-precision is also needed for the optimizations to be correct. See example in
-Figure \ref{alias-example1} which demonstrates both the cases. The second
-assignment to {\tt b} might seem redundant, as {\tt a} could not have changed.
-However, it is true only if the call to {\tt some\_fn} did not change variable
-{\tt b}. 
+The goal of alias analysis is to enable optimizations across memory operations.
+It is used by other compiler components to disambiguate accesses to memory
+locations. We discuss most commonly used decision methods, with focus on points-to
+analysis.
+
+\section{Common alias analysis methods}
+
+In the language C, a location is usually accessed by its name or a
+pointer. Disambiguating two accesses enables many optimizations, but missing an
+alias might result in incorrect code generated. See example in Figure
+\ref{alias-example1}. The second assignment to {\tt b} might seem redundant, as
+{\tt a} could not have changed.  However, it is true only if the call to {\tt
+some\_fn} did not change variable {\tt b}.
 
 \begin{figure}[h!]
-	\label{alias-example1}
+\label{alias-example1}
 \begin{tcolorbox}
 \begin{lstlisting}{language=c,tabsize=2}
 void set_call_set(void) {
@@ -23,16 +28,17 @@ void set_call_set(void) {
 }
 \end{lstlisting}
 \end{tcolorbox}
-	\caption{Example of the importance of alias information}
+\caption{Example of the importance of alias information}
 \end{figure}
 
-In a large program the aliasing may be arbitrarily complex, but many
+Accurately disambiguating memory references may be arbitrarily complex, but many
 optimizations will be possible even with a minimal aliasing information.
 Consider example in Figure \ref{alias-example2}. The loop seems to write zeroes
 into an array of floats {\tt a}. This is true if the pointer dereference can not
 change the pointer itself. Fortunately we do not need to examine any code not
 shown in the example. The C standard prohibits the dereference of {\tt float*}
-to modify {\tt float*} itself.
+to modify {\tt float*} itself \cite{isoc}. This method is called {\it Type-Based
+Alias Analysis} (TBAA).
 
 \begin{figure}[h!]
 	\label{alias-example2}
@@ -49,44 +55,7 @@ void fill_floats(void) {
 	\caption{Example of the importance of alias information}
 \end{figure}
 
-To answer questions about aliasing, we usually use {\it Alias oracle}.
-This usually is a function that given two memory accesses in a program
-answers if they can access the same memory location. The answer can be {\it
-yes}, {\it no} or {\it maybe}. A single oracle can apply multiple algorithms to
-determine the answer. The following three oracles are most often used:
-
-\subsection{Type based analysis}
-
-As the name suggests, Type Based Alias Analysis (TBAA) infers aliasing
-information from types and language rules, as seen in Figure
-\ref{alias-example2}. This method is very fast, as it only needs to inspect
-the types in question. Due to the speed, it is usually asked first and is able
-to distinguish many cases by itself.
-
-\subsection{Base and offset analysis}
-
-If two accesses possibly refer to the same language type, they may not
-necessarily refer to the same memory location if the object is compound, for
-example a C {\tt struct}. The base structure and offset in it can be compared.
-For example, if a {\tt struct} contains two integers, access to one of them is
-distingueshed from the other by base and offset analysis.
-
-\subsection{Points-to analysis}
-
-If a memory access cannot be disambiguated by any simpler rule, points-to sets
-must be analyzes and evaluated. A {\it points-to set} for a variable is a set of
-memory locations the variable can be used to access. For example, a simple
-non-pointer variable can only be used to access itself (access by name). A
-pointer variable can be used to access other memory locations of which the
-address was taken. To disambiguate memory accesses the points-to sets have to be
-compared and if their intersection is empty, it is safe to assume they do not
-alias. If their intersection is non-empty, or some of the sets could not be
-computed, we must assume they do intersect to preserve correctness.
-
-Compared to type based and base and offset analysis, points-to analysis is a
-time-consuming process and will be a focus of this chapter.
-
-\section{May and Must-alias}
+\subsection{May and Must-alias}
 
 It is useful to distinguish between may-alias and must-alias information.
 May-alias information indicates that the access may alias on at least one path
@@ -123,7 +92,48 @@ void fill_floats(void) {
 \caption{Example of may and must-aliasing}
 \end{figure}
 
-\section{Flow and context sensitivity}
+Alias analysis can be seen as a separate module of a compiler, which is accessed
+by optimization passes by the means of {\it Alias oracle}. This usually is a
+function that given two memory accesses in a program answers if they can access
+the same memory location. The answer can be {\it yes}, {\it no} or {\it maybe}.
+A single oracle can apply multiple algorithms to determine the answer. The
+following three oracles are most often used:
+
+\subsection{Type based analysis}
+
+As the name suggests, Type Based Alias Analysis (TBAA) infers aliasing
+information from types and language rules, as seen in Figure
+\ref{alias-example2}. This method is very fast, as it only needs to inspect
+the types in question. Due to the speed, it is usually asked first and is able
+to distinguish many cases by itself.
+
+\subsection{Base and offset analysis}
+
+In the case of structures or arrays, the access is composed of base pointer and
+an offset. The offset information might not be complete, but sometimes the range
+for offset is known. If the bases are distinct memory locations, the accesses do
+not alias.  If the bases are provably the same memory locations, the offets can
+be compared to see if the accesses can alias.
+
+\subsection{Points-to analysis}
+
+If a memory access cannot be disambiguated by any simpler rule, points-to sets
+must be analyzes and evaluated. A {\it points-to set} for a variable (pointer)
+is a set of memory locations the variable can be used to access. For example, a
+simple non-pointer variable can only be used to access itself (access by name).
+A pointer variable can be used to access other memory locations of which the
+address was taken. To disambiguate memory accesses the points-to sets have to be
+compared and if their intersection is empty, it is safe to assume they do not
+alias. If their intersection is non-empty, or some of the sets could not be
+computed, we must assume they do intersect to preserve correctness.
+
+Compared to type based and base and offset analysis, points-to analysis is a
+time-consuming process and will be a focus of this chapter.
+
+
+\section{Points-to analysis}
+
+\TODO{Uvod}
 
 It is also useful to distinguish between flow sensitivity, context sensitivity
 and their combinatins.
@@ -148,31 +158,31 @@ intraprocedural case. While flow sensitivity relies on control flow graph inside
 a single function, context sensitivity is based on callgraph. 
 
 Before we continue further, let us formally define the various alias-analysis
-types. We will use definitions compatibile with  \cite{muchnick1997advanced}.
+types. See \cite{muchnick1997advanced}.
 
 \paragraph{Definition} {\it Flow-insensitive may-alias information} is a binary
-relation $A_{FinMay} \subseteq \Var \times \Var $ on the variables. A pair
-$(x,y)$ is in the relation if and only if $x$ and $y$ can refer to the same
-memory location, possible at a different place in the program, or at a different
+relation $A_{\mathrm{FinMay}} \subseteq \Var \times \Var $ on the variables. A pair
+$(x,y)$ is in the relation if $x$ and $y$ can refer to the same
+memory location, possibly at a different place in the program, or at a different
 time during execution. This relation is symmetric, but is not transitive.
 
 \paragraph{Definition} {\it Flow-insensitive must-alias information} is a binary
-relation $A_{FinMust} \subseteq \Var \times \Var$ on the variables. A pair
+relation $A_{\mathrm{FinMust}} \subseteq \Var \times \Var$ on the variables. A pair
 $(x,y)$ is in the relation if and only if $x$ and $y$ always refer to the same
 memory location during the program execution. This relation is symmetrict, but
 also transitive. 
 
-The flow-sensitive case is a bit more complicated, and can be examined both as a
+The flow-sensitive case is a more complicated, and can be examined both as a
 relation or function.
 
 \paragraph{Definition} {\it Flow-sensitive may-alias information} is a ternary
-relation $A_{FseMay} \subseteq \Var \times \Var \times \Loc$ on the variables
-and program locations. A triplet $(x,y,p)$ is in the relation if and only if $x$
+relation $A_{\mathrm{FseMay}} \subseteq \Var \times \Var \times \Loc$ on the variables
+and program locations. A triplet $(x,y,p)$ is in the relation if $x$
 and $y$ can refer to the same memory location at the point $p$ in program
 execution.
 
 \paragraph{Definition} {\it Flow-sensitive must-alias information} is a ternary
-relation $A_{FseMust} \subseteq \Var \times \Var \times \Loc$ on the variables
+relation $A_{\mathrm{FseMust}} \subseteq \Var \times \Var \times \Loc$ on the variables
 and program locations. A triplet $(x,y,p)$ is in the relation if and only if $x$
 and $y$ always refer to the same memory location at the point $p$ in program,
 regardless of what the memory location is.
@@ -183,59 +193,9 @@ the definition of context, as there are multiple possiblites. A context could be
 just a call site, or a path in callgraph from the entry point, possibly only to
 a limited depth.
 
-%\section{Problem complexity}
-%
-%Consider the  C code in Figure \ref{figure-alias-evil}, where {\tt X}, {\tt Y}
-%and {\tt Z} are some constants and {\tt x29A} is some unknown function. Let us
-%analyze what the points-to set for {\tt p} could be. It is not clear what the
-%points-to set for {\tt p} should be. During execution, any of the following
-%three cases could arise:
-%
-%\begin{enumerate}
-%	\item Function {\tt x29A} never returns, {\tt p} points only to {\tt NULL}.
-%	\item Function {\tt x29A} finishes and always returns true or always returns
-%		false, {\tt p} points to either {\tt *X} or {\tt *Y}.
-%	\item Function {\tt x29A} finishes and sometimes returns true, sometimes
-%		false, {\tt } points-to {\tt *X, *Y}.
-%\end{enumerate}
-%
-%Fortunately the case 1. does not need to be solved, as the {\tt p} would never
-%be used. Even constructing infinite function in most languages is hard. For
-%example in C, this can be done by three things: program exit, infinite recursion
-%or infinite loop. Program exit causes {\tt p} not to be used and we can disregard this case. 
-%As computers have limited amount of RAM, infinite recursion is not possible, so
-%we can disregard this case as well. The only one left is infinite loop, which is
-%possible, but in {\tt C}, the standard permits to assume most loops will
-%terminate\cite{isoc} and even if the they do not, we can assume they do, as the
-%code will not not execute if they do not. This is good news, as we do not have
-%to solve halting problem during alias analysis.
-%
-%If we had to recognize and analyze the case 2., the alias analysis would have to
-%decide the answer of {\tt x29A}. As the inputs are constants, it theoretically
-%could be done, but the author could also encode an NP-hard problem in them, and
-%force our analysis to be arbitrarily complex.
-%
-%\begin{figure}[h!]
-%\label{figure-alias-evil}
-%\begin{tcolorbox}
-%\begin{lstlisting}{language=c++,tabsize=2}
-%bool x29A(void **arg1, void *arg2, char *str);
-%
-%int main() {
-%	void *a = X;
-%	void *b = Y;
-%	void *p = NULL;
-%	p = x29A(a, b, Z) ? a : b;
-%	[...]
-%}
-%\end{lstlisting}
-%\end{tcolorbox}
-%\caption{Example of AA complexity}
-%\end{figure}
+\subsection{Problem complexity}
 
-\section{Problem complexity}
-
-It is useful to know how difficult the problem of alias analysis is. In this
+It is useful to know how difficult the problem of points-to analysis is. In this
 section we will review previous results showing the theoretical bounds for
 different problem variants.
 
@@ -244,73 +204,27 @@ computing flow-sensitive may- and must-alias information in the presence of
 single level pointers can be done in polynomial time. By adding more levels of
 indirection, as is common in most languages, the problem becomes NP-hard.
 
-Later Horowitz \cite{Horowitz1997}  proved that precise flow-insensitive alias
+Later Horwitz \cite{Horwitz1997}  proved that precise flow-insensitive alias
 analysis is NP-hard with only scalar variables and no heap allocations, though
 the result assumes unrestricted pointer dereference.
 
 Chakaravarthy \cite{ptcomp} proved that when heap allocations are allowed the
 problem becomes undecidable, even if all the variables are scalar. The same
-articles also proves that the flow-insensitive variant is in $\P$, if the
+articles also proves that the flow-insensitive variant is in P, if the
 variables are further restricted to well-defined types\footnote{Known type and
 number of indirections}. Although this is not always the case, it gives us hope
 that a successful alias analysis could be performed on a well-formed program.
 
+\TODO{Praxe}
 
-%\subsection{Single-level pointers}
-%
-%Let us first analyze the complexity of may-alias in a simple case, where only
-%single level pointers exist and no dynamic allocation is possible. Denote by $n$
-%the number of pointers, by $v$ number of scalar variables and memory locations.
-%
-%To compute points-to sets, we start with empty points-to sets, and insert
-%variable in each instance its address was taken. That is for each statement {\tt
-%p := \&a}, we insert {\tt a} into points-to set for {\tt p}. The next step is to
-%propagate across assignments between pointers, until we reach a stable solution.
-%
-%\begin{enumerate}
-%	\item For each pointer variable $p_i$, let $PT := \{ 0_i \}$, where $0_i$ is
-%		the initial value of $p_i$.
-%	\item Propagate points-to sets for each modification of $p_i$.
-%\label{triv-alg-prop}
-%	\item If any set was changed in step \ref{triv-alg-prop}, go back to
-%		\ref{triv-alg-prop}.
-%\end{enumerate}
-%
-%We can easily formulate this problem as system of set inequalities where:
-%
-%\begin{itemize}
-%	\item $p_i := \&a$ is $a \in p_i$ for $a$ scalar
-%	\item $p_i := p_j$ is $p_j \subseteq p_i$
-%\end{itemize}
-%
-%As there are only single level pointers, we are not allowed to take address of a
-%pointer, and dereference always results in a scalar, which does not change any
-%pointer.
-%
-%Now it's clear that when the algorithm exits, the solution is conservatively
-%correct. Also, if $n$ and $v$ are finite, it will finish after at most $n \cdot
-%v$ steps, as in each step at least one set will increase in size, and every set
-%can have at most $v$ elements in.
-%This gives us simple (not necessarily efficient) polynomial-time algorithm.
-%
-%Of course there is a problem that in practice we  do not have all the information.
-%That may include external functions (possibly with side-effects), dynamically
-%allocated memory and more obscure, possibly language-specific, features as for
-%example pointer arithmetic. We will ignore these now for simplicity, and
-%deal with them later. \TODO{Reference.}
-%
-%\subsubsection{Multi-level pointers}
-%
-%Things start to be difficult when multi-level pointers come in play. 
-%\TODO{Proof.}
 
-\section{Known algorithms and approaches}
+\subsection{Known algorithms and approaches}
 
-During the years, only a few algorithms have been developed and as alias
+During the years, only a few algorithms have been developed and because alias
 analysis is a typical dataflow problem, there is little reason to expect a
 practical but fundamentally different algorithm.
 
-\subsection{Andersen's algorithm}
+\subsubsection{Andersen's algorithm}
 
 First published by Lars Ole Andersen \cite{Andersen94}, it is an {\it
 inclusion-based} algorithm is based on direct mathematical representation of
@@ -335,20 +249,20 @@ The structure of proposed Andersen's flow-insensitive algorithm is shown in Figu
 \begin{tcolorbox}
 \begin{enumerate}
 	\item Initialize variables using \ref{aa-init}.
-	\item Build a propagation graph using \label{aa-prop} and \label{aa-deref}
+	\item Build a propagation graph using \ref{aa-prop} and \ref{aa-deref}
 		with variables as vertices, propagations along edges.
 	\item Find strongly connected components in the grah and merge them into a single node.
 	\item Mark every node as changed.
-	\label{aa-propstep} 
 	\item For every changed node, reset its changed status, propagate the change
 		along edges and mark nodes as changed if they were modified.
+	\label{aa-propstep} 
 	\item Repeat step \ref{aa-propstep}. until no node is marked as changed.
 \end{enumerate}
 \end{tcolorbox}
 \caption{Andersen's algorithm}
 \end{figure}
 
-\subsection{Steensgaard's algorithm}
+\subsubsection{Steensgaard's algorithm}
 
 Developed by Bjarne Steensgaard \cite{Steensgaard96}, it is  a {\it
 unification-based}, similar to Andersen's, but uses unification instead of
@@ -356,7 +270,7 @@ subset contraints. It only needs to partition pointers into equavalence
 classes, which can be done in almost linear time. This leads to a very fast and
 scalable algorithm, sacrificing some precision.
 
-There is very little research utilizing unification-based algorithms, as it is
+The unification-based algorithms are less used, as the method is
 believed to be patented by Microsoft\cite{patent:steensgaard}. It was
 implemented in LLVM, but later removed in 2006 \cite{LLVM:DSA:Remove} due to
 patent concerns. We expect this to change, as the patent has just expired while
@@ -365,12 +279,12 @@ writing this thesis, in September 2016.
 \subsection{Further improvements}
 
 Steensgaard's algorithm can use Union-Find data structure for the unification,
-which is already extremely efficient. Andersen's algorithm has to deal with
-sets, and the choice of data structure for set management is harder. Two major
-improvements have been proposed to date, though none of them have been
-implemented in a production compiler.
+which is already extremely efficient \cite{Tarjan1975}. Andersen's algorithm has
+to deal with sets, and the choice of data structure for set management is
+harder. Two major improvements have been proposed to date, though none of them
+have been implemented in a production compiler.
 
-\subsection{Bloom filters}
+\subsubsection{Bloom filters}
 
 The use of Bloom filters was first proposed by Nasre et. al \cite{nasre2009}.
 They are very space efficient and perform well on certain operations, as is
@@ -382,7 +296,7 @@ after that, the algorithm answers conservatively.
 
 We will revisit the use of Bloom filters in later chapters.
 
-\subsection{Binary decision diagrams based algorithms}
+\subsubsection{Binary decision diagrams based algorithms}
 
 A Binary decision diagram (BDD) is a data structure used to represent boolean
 functions. It can be easily extended to represet relations by encoding
@@ -399,18 +313,21 @@ loss-less representations.
 There are not many modern compilers with open code that can be examined and improved
 upon. One of the players is GCC, that has been around since 1985
 (1.x release was in 1991) and is the most widely used open source compiler
-today. The younger competitor is LLVM/Clang, first released in 2003. It's
-written in C++, is supported by Apple since 2005, and due to it's age has much
+today. The younger competitor is LLVM/Clang, first released in 2003. It is
+written in C++, is supported by Apple since 2005, and due to its age has much
 mure modern design, and is generally deemed to be easier to extend and work
-with. A lot of researchers also focus on Java compiles and algorithms, and though many
+with. Other competitor is Open64, which lacks community support, but is still
+being developed by some groups.
+
+Many researchers also focus on Java compiles and algorithms, and though many
 techniques can be used for C and C++, Java is very different language, in that
 it has JIT\footnote{Just In Time} compiler, and does not have pointers in the
 classic sense, only references, which simplifies some cases.
 
 There are much more compilers available, but most of them are proprietary or not
-maintained, as for example the Open64, ICC and VisualC++.
+maintained, as for example the Intel C++ Compiler (ICC) and VisualC++.
 
-Also, it is very hard to compare many of the published results, as the
+It is very hard to compare many of the published results, as the
 implementations are not public, and mostly implemented for compilers that are
 unable to keep up with current C/C++ standards and successfully build modern
 (and big) projects. Many of the results are computed outside the compiler and
@@ -427,8 +344,6 @@ As LLVM is very modular, it contains multiple alias analysis passes.
 \begin{itemize}
 	\item {\bf -basic-aa} pass, providing local alias information using many
 		language-specific facts.
-	\item {\bf -scev-aa} pass, translation queries into Scalar Evolution queries
-		\TODO{WTF?}
 \end{itemize}
 
 Additionally, there are three passes in {\tt poolalloc} package:
@@ -441,5 +356,12 @@ Additionally, there are three passes in {\tt poolalloc} package:
 		analysis, providing context and field sensitive alias information.
 \end{itemize}
 
-\TODO{Are they interprocedural? steens probably is, but needs checking; more
-info on this here: http://llvm.org/docs/AliasAnalysis.html}
+
+\subsubsection{GCC}
+
+GCC has a good support for TBAA and Base-offset analysis, intraprocedural
+points-to analysis, but lacks a good interprocedural points-to analysis.
+
+\subsubsection{Open64}
+
+\TODO{New AA in 2013}

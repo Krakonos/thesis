@@ -3,9 +3,7 @@
 During points-to analysis the datastructure is almost as important as the
 algorithm used. In the case of GCC, the structure chosen is a hybrid of bitmap
 and a linked list. This works fine for small and dense data, but not so well
-with large data.
-
-Converting to a better data structure is relatively easy task, but what data
+with large data. Converting to a better data structure is relatively easy task, but what data
 structures are available? We will start by examining the needs of a typical
 Andersen-style algorithm and comparing theoretical complexities of various well
 known data structures. In the rest of this chapter we will describe a new
@@ -14,16 +12,17 @@ in points-to analysis.
 
 \section{Requirements}
 
-We need a data structure holding sets of integers that is compact and has the
-following operations.
+As a basic data structure for PTA, we need a data structure holding sets of
+integers that is compact and has the following operations.
 
 \begin{itemize}
-	\item {\tt INSERT} -- inserts {\tt element} into {\tt set} and returns if
+	\item {\tt INSERT(set, element)} -- inserts {\tt element} into {\tt set} and returns if
 		the structure has been changed by the insertion.
-	\item {\tt QUERY} -- checks if an {\tt element} is part of a {\tt set}.
-	\item {\tt INTERSECT\_EMTPY} -- checks if intersection of two sets is empty.
-	\item {\tt ENUMERATE} -- lists all elements in a {\tt set}
-	\item {\tt UNION} -- merge one {\tt set} into another.
+	\item {\tt QUERY(set, element)} -- checks if {\tt element} is part of {\tt set}.
+	\item {\tt INTERSECT\_EMTPY(set1, set2)} -- checks if intersection of {\tt
+		set1} and {\tt set2} is empty.
+	\item {\tt ENUMERATE(set)} -- lists all elements in a {\tt set}.
+	\item {\tt UNION(set1, set2)} -- merge {\tt set2} into {\tt set1}.
 \end{itemize}
 
 The algorithm uses the following operations in the following way:
@@ -33,11 +32,11 @@ The algorithm uses the following operations in the following way:
 	\item Propagation: {\tt UNION} for every simple constraint, {\tt ENUMERATE} and
 		{\tt UNION} for dereferences.
 	\item Oracle queries: {\tt QUERY} for set membership, {\tt INTERSECT\_EMPTY}
-		.for set disjointness
+		for set disjointness
 \end{itemize}
 
-In other words, the basic operations can be a bit slower, but we need a good and
-fast {\tt UNION}. There are a few other considerations:
+In other words, the basic operations can be slower, {\tt UNION} and {\tt
+INTERSECT\_EMPTY} has to be fast. There are a few other considerations:
 
 \begin{itemize}
 	\item The {\tt UNION} will be called on the same pairs over and over again,
