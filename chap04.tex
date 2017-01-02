@@ -1,0 +1,114 @@
+\chapter{Using Bloomaps in points-to analysis}
+
+In this chapter we will discuss the internals of points-to analysis as
+implemented in the GCC compiler and how it was augmented by the use of Bloomaps
+instead of regular bitmaps. We will then show how the change affected GCC and
+discuss future work.
+
+\section{Points-to analysis in GCC}
+
+The points-to analysis in GCC is implemented in two files. The {\tt
+tree-ssa-alias.c} contains the alias oracle and the TBAA algorithm. Most of the
+functionality is wrapped in function {\tt refs\_may\_alias\_p(tree,tree)}, but a
+few others exist to check for aliasing with global memory, call clobbers and
+other special cases.
+
+The data is stored in a structure {\tt pt\_solution}, which is computed by
+algorithm in {\tt tree-ssa-structalias.c}. It is an implementation based on
+\cite{Pearce2004,Heintze2001}, and is an Andersen-style algorithm. An overview
+of this algorithm is on Figure \ref{figure-gcc-aliasalg}.
+
+
+\begin{figure}[h!]
+\label{figure-gcc-aliasalg}
+\begin{tcolorbox}
+\begin{enumerate}
+	\item Each variable get allocated a {\tt varinfo\_t} structure, which includes some metadata and a solution set $\Sol(x)$.
+	\item All direct constraints ({\tt p = \&q}) are found and processed (used to initialize the solution sets).
+	\item All copy constraints ({\tt p = q}) are found and used to build a constraint graph on variables, such that for {\tt p = q} constraint there exists an edge {\tt q $\to$ p}.
+	\item All complex constraints (containing dereferences or field offsets) are found and attached to their corresponding nodes in the constraint graph.
+	\item Strongly connected components in the graph are found and contracted.
+	\item All nodes are put into a worklist.
+	\item A node is taken from the worklist, all complex constraints are processed (possibly adding more copy edges to the graph) and its set is propagated alog the copy edges. All nodes modified by this operation are put into the worklist.
+	\label{gcc-aa-propstep}
+	\item Repeat step \ref{gcc-aa-propstep}. while there are elements in the worklist.
+\end{enumerate}
+\end{tcolorbox}
+\caption{GCC implementation of Andersen's algorithm}
+\end{figure}
+
+There are a few tricks to this implementation. Most importantly it actually has
+two modes, one for intraprocedural points-to analysis (PTA), one for
+interprocedural points-to analysis (IPA PTA). This complicates the development.
+We want to keep the intraprocedural analysis as it actually performs well, and
+modify the interprodecural version which has performance issues as discusses in
+earlier chapters.
+
+\subsection{Improving the implementation}
+
+In this work, we have temporarily duplicated the code into {\tt
+ik-structlias.c}, which was then modified only to work only on the interprocedural
+version. Though this is not a good practice in general, it brings some good
+opportunities.  We can run the original and modified IPA PTA algorithm in a
+single execution and directly compare the results. Furthermore, while
+benchmarking only the PTA code changes, the rest of the compiler is identical.
+The most important reason is to avoid case separation in each function, as we
+will not only need to pass different data types, but some operations are no
+longer supported, and some operations should be used with greater care than
+they are now. This is the case for bitmap difference which is used to discover
+changed bit in a bitmap, and enumeration of elements, which is used a few times
+during propagation, but can be avoided in some cases. After inspecting the
+code, it became clear that the two algorithms need to be separated.
+
+To split the code, a few modifications has been done. Common functions were
+marked static and renamed to avoid confusion. New query functions were added to
+{\tt tree-ssa-alias.c}, which ask both the original and the new IPA PTA oracle
+if the data is available. A new pass has been created, called {\tt kpta} and options added to control it:
+
+\begin{itemize}
+	\item {\tt -fipa-kpta} is an analog to {\tt -fipa-pta} and instructs the compiler to run the new IPA PTA algorithm during LTO phase, just after the original IPA PTA pass (if enabled).
+	\item {\tt --param kpta-bloomap-size=n} instructs the compiler to use a bloomap of specific size.
+	\item {\tt --param kpta-bloomap-precision=p} instructs the compiler to use a bloomap of specific precision. The value passed is inverted precision in percent, so a value of $100$ will result in a precision of $1\%$.
+\end{itemize}
+
+
+\subsection{Integrating Bloomaps}
+
+Integrating bloomaps was relatively straightforward. A few steps were necessary, as some operations do not map well to Bloomap operations.
+
+\begin{itemize}
+	\item The main loop in {\tt solve\_graph()} keeps two solution sets, a
+		current one and one from previous iteration. When new elements are to
+		be propagated (via complex constraints), only the difference is
+		examined to make changes. This is a nice optimization for classical
+		bitmaps, Bloomap has no easy method to list difference and would have
+		to be enumerated. This is unavoidable, but we do not store two bloomaps
+		just for this optimization.
+	\item Due to historical reasons, when all the sets were computed, they were
+		translated from internal variable ids to {\tt DECL\_UID}s. The
+		rationale for this was to avoid having to fixup when a functions was
+		later inlined. This is unnecessary in recent versions, as all inlining
+		happens before IPA PTA pass. It would also introduce additional errors,
+		as the bloomap would have to be enumerated and false positives would be
+		inserted into a new bloomap. This step was replaced by translating {\tt
+		DECL\_UID}s to internal ids during each query.
+	\item Bitmap deduplication was removed. After translating the ids, bitmaps
+		were hashed and deduplicated via a list of shared bitmaps. This
+		deduplication results in a less bitmaps, but is not worth the effort
+		for bloomaps, as they are already very space efficient.
+	\item During structure field expansion, the set is enumerated a few times.
+		A set is temporarily converted to classical bitmap in this step to
+		avoid unnecessary work during bloomap enumeration.
+\end{itemize}
+
+\section{Performance evaluation}
+
+\begin{figure}[h!]
+	\label{figure-firefox-ipa-kpta}
+	\centering
+	\includegraphics{./graphs/firefox-ipa-kpta/firefox-ipa-kpta.pdf}
+	\caption{Building libxul.so with {\tt -fipa-kpta -flto=8}}
+\end{figure}
+
+
+\section{Future work}
