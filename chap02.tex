@@ -14,7 +14,7 @@ alias might result in incorrect code generated. See example in Figure
 {\tt a} could not have changed.  However, it is true only if the call to {\tt
 some\_fn} did not change variable {\tt b}.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \begin{tcolorbox}
 \begin{lstlisting}{language=c,tabsize=2}
 void set_call_set(void) {
@@ -40,7 +40,7 @@ shown in the example. The C standard prohibits the dereference of {\tt float*}
 to modify {\tt float*} itself \cite{isoc}. This method is called {\it Type-Based
 Alias Analysis} (TBAA).
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \begin{tcolorbox}
 \begin{lstlisting}{language=c,tabsize=2}
 void fill_floats(void) {
@@ -66,7 +66,7 @@ The information ``{\tt q} points-to {\tt x}'' is an example of must-alias, as it
 holds on all paths in the example. Notice that must-alias always returns a
 single element, may-alias usually returns larger points-to sets.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \begin{tcolorbox}
 \begin{lstlisting}{language=c++,tabsize=2}
 void fill_floats(void) {
@@ -105,26 +105,49 @@ the C Language \cite{isoc}. This method is
 very fast, as it only needs to inspect the types in question. For this reason,
 it is usually asked first and is able to distinguish many cases by itself.
 
-\subsection{Base and offset analysis}
 \label{sec-baseoffset}
-
-In the case of structures or arrays, the access is composed of base pointer and
+\paragraph{Base and offset analysis}
+is used for structures or arrays, where the access is composed of base pointer and
 an offset. The offset information might not be complete, but sometimes the range
 for offset is known. If the bases are distinct memory locations, the accesses do
-not alias.  If the bases are provably the same memory locations, the offets can
+not alias.  If the bases are provably the same memory locations, the offsets can
 be compared to see if the accesses can alias.
 
-\subsection{Points-to analysis}
+For example, consider the code in Figure \ref{figure-base-offset-example}. The
+base and offset would be able to decide  that {\tt a[5]} and {\tt a[6]} do not
+alias, as their base is identical and offset differs by at least size of array
+type, {\tt char}. On the other hand, it is unable to answer if {\tt *p} and {\tt
+a[0]} alias: though the base is provably the same, it is unknown what the offset
+is for {\tt p}.
 
-If a memory access cannot be disambiguated by any simpler rule, points-to sets
-must be analyzes and evaluated. A {\it points-to set} for a variable (pointer)
-is a set of memory locations the variable can be used to access. For example, a
-simple non-pointer variable can only be used to access itself (access by name).
-A pointer variable can be used to access other memory locations of which the
-address was taken. To disambiguate memory accesses the points-to sets have to be
-compared and if their intersection is empty, it is safe to assume they do not
-alias. If their intersection is non-empty, or some of the sets could not be
-computed, we must assume they do intersect to preserve correctness.
+\begin{figure}[!ht]
+\begin{tcolorbox}
+\begin{verbatim}
+void base_offset(void) {
+  char a[] = {..., 0};
+  char *p = a;
+  while ((*p) != 0 || (*p) != 'a') 
+    p++;
+  a[5] = a[6];
+  (*p) = a[0];
+  [...]
+}
+\end{verbatim}
+\end{tcolorbox}
+\caption{Example of base an offset analysis}
+\label{figure-base-offset-example}
+\end{figure}
+
+\paragraph{Points-to analysis} is used in case a memory access cannot be
+disambiguated by any simpler rule, points-to sets must be analyzes and
+evaluated. A {\it points-to set} for a variable (pointer) is a set of memory
+locations the variable can be used to access. For example, a simple non-pointer
+variable can only be used to access itself (access by name).  A pointer variable
+can be used to access other memory locations of which the address was taken. To
+disambiguate memory accesses the points-to sets have to be compared and if their
+intersection is empty, it is safe to assume they do not alias. If their
+intersection is non-empty, or some of the sets could not be computed, we must
+assume they do intersect to preserve correctness.
 
 Compared to type based and base and offset analysis, points-to analysis is a
 time-consuming process and will be a focus of this chapter.
@@ -132,41 +155,36 @@ time-consuming process and will be a focus of this chapter.
 
 \section{Points-to analysis}
 
-\TODO{Uvod}
-
-It is also useful to distinguish between flow sensitivity, context sensitivity
-and their combinatins.
+Both type-based analysis and base and offset analysis run in constant time. On
+the other hand, points-to analysis requires nontrivial processing and does not
+necessarily scale and we discuss it further. To solve the problem we first need
+to distinguish between the variants of the problem, as the approach to solve
+them differs wildly. 
 
 A {\it flow-sensitive} algorithm computes the alias information with regard to control
 flow. In the example in Figure \ref{alias-example-maymust} it would notice the
 different branches of {\tt if} and provide information that ``{\tt p} points to
 {\tt x} in the {\tt if} branch'' and similarly for the {\tt else} branch.
-
 A {\it flow-insensitive} algorithm computes alias information without any regard
 to control flow. In the same example it would just output ``{\tt p} may point-to
 {\tt x} or {\tt y}''.
 
-Also notice that the flow-sensitive algorithm gave us must-alias
-information, while the flow-insensitive only gave may-alias information.
-This is to be expected, as the flow-insensitive variation would require only
-single assignment to the pointer (at initialization) to output must-alias
-information.
-
 Context sensitivity is a similar problem to flow sensitivity but in
 intraprocedural case. While flow sensitivity relies on control flow graph inside
-a single function, context sensitivity is based on callgraph. 
+a single function, context sensitivity is based on callgraph. The callstack, or
+some part of it, is usually considered as a context.
 
-Before we continue further, let us formally define the various alias-analysis
+Let us formally define the various alias-analysis
 types. See \cite{muchnick1997advanced}.
 
-\paragraph{Definition} {\it Flow-insensitive may-alias information} is a binary
-relation $A_{\mathrm{FinMay}} \subseteq \Var \times \Var $ on the variables. A pair
+\paragraph{Definition.} {\it Flow-insensitive may-alias information} is a binary
+relation on the variables $A_{\mathrm{FinMay}} \subseteq \Var \times \Var $. A pair
 $(x,y)$ is in the relation if $x$ and $y$ can refer to the same
 memory location, possibly at a different place in the program, or at a different
 time during execution. This relation is symmetric, but is not transitive.
 
-\paragraph{Definition} {\it Flow-insensitive must-alias information} is a binary
-relation $A_{\mathrm{FinMust}} \subseteq \Var \times \Var$ on the variables. A pair
+\paragraph{Definition.} {\it Flow-insensitive must-alias information} is a binary
+relation on the variables $A_{\mathrm{FinMust}} \subseteq \Var \times \Var$. A pair
 $(x,y)$ is in the relation if and only if $x$ and $y$ always refer to the same
 memory location during the program execution. This relation is symmetrict, but
 also transitive. 
@@ -174,15 +192,15 @@ also transitive.
 The flow-sensitive case is a more complicated, and can be examined both as a
 relation or function.
 
-\paragraph{Definition} {\it Flow-sensitive may-alias information} is a ternary
-relation $A_{\mathrm{FseMay}} \subseteq \Var \times \Var \times \Loc$ on the variables
-and program locations. A triplet $(x,y,p)$ is in the relation if $x$
+\paragraph{Definition.} {\it Flow-sensitive may-alias information} is a ternary
+relation on the variables and program locations $A_{\mathrm{FseMay}} \subseteq
+\Var \times \Var \times \Loc$. A triplet $(x,y,p)$ is in the relation if $x$
 and $y$ can refer to the same memory location at the point $p$ in program
 execution.
 
-\paragraph{Definition} {\it Flow-sensitive must-alias information} is a ternary
-relation $A_{\mathrm{FseMust}} \subseteq \Var \times \Var \times \Loc$ on the variables
-and program locations. A triplet $(x,y,p)$ is in the relation if and only if $x$
+\paragraph{Definition.} {\it Flow-sensitive must-alias information} is a ternary
+relation on the variables and program locations $A_{\mathrm{FseMust}} \subseteq
+\Var \times \Var \times \Loc$. A triplet $(x,y,p)$ is in the relation if and only if $x$
 and $y$ always refer to the same memory location at the point $p$ in program,
 regardless of what the memory location is.
 
@@ -243,11 +261,11 @@ expressions are then translated into set inequalities:
 The structure of proposed Andersen's flow-insensitive algorithm is shown in Figure
 \ref{figure-andersen}.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \begin{tcolorbox}
 \begin{enumerate}
-	\item Initialize variables using \ref{aa-init}.
-	\item Build a propagation graph using \ref{aa-prop} and \ref{aa-deref}
+	\item Initialize variables using inequality \ref{aa-init}.
+	\item Build a propagation graph using inequalities \ref{aa-prop} and \ref{aa-deref}
 		with variables as vertices, propagations along edges.
 	\item Find strongly connected components in the grah and merge them into a single node.
 	\item Mark every node as changed.
@@ -263,17 +281,18 @@ The structure of proposed Andersen's flow-insensitive algorithm is shown in Figu
 
 \subsubsection{Steensgaard's algorithm}
 
-Developed by Bjarne Steensgaard \cite{Steensgaard96}, it is  a {\it
+The main problem of Andersen's approach is scalability. 
+Elegant approach was developed by Bjarne Steensgaard \cite{Steensgaard96}. It is  a {\it
 unification-based}, similar to Andersen's, but uses unification instead of
 subset contraints. It only needs to partition pointers into equavalence
 classes, which can be done in almost linear time. This leads to a very fast and
 scalable algorithm, sacrificing some precision.
 
 The unification-based algorithms are less used, as the method is
-believed to be patented by Microsoft\cite{patent:steensgaard}. It was
-implemented in LLVM, but later removed in 2006 \cite{LLVM:DSA:Remove} due to
-patent concerns. We expect this to change, as the patent has just expired while
-writing this thesis, in September 2016.
+believed to be patented by Microsoft\cite{patent:steensgaard}. It is being used
+in Open64 and was implemented in LLVM, but later removed in 2006
+\cite{LLVM:DSA:Remove} due to patent concerns. We expect this to change, as the
+patent has just expired while writing this thesis, in September 2016.
 
 \subsection{Further improvements}
 
@@ -313,27 +332,30 @@ There are not many modern compilers with open code that can be examined and impr
 upon. One of the players is GCC, that has been around since 1985
 (1.x release was in 1991) and is the most widely used open source compiler
 today. The younger competitor is LLVM/Clang, first released in 2003. It is
-written in C++, is supported by Apple since 2005, and due to its age has much
-mure modern design, and is generally deemed to be easier to extend and work
+written in C++, is supported by Apple since 2005, and due to its age has 
+more modern design, and is generally deemed to be easier to extend and work
 with. Other competitor is Open64, which lacks community support, but is still
 being developed by some groups.
 
 Many researchers also focus on Java compiles and algorithms, and though many
 techniques can be used for C and C++, Java is very different language, in that
-it has JIT\footnote{Just In Time} compiler, and does not have pointers in the
+it has just in time compiler (JIT), and does not have pointers in the
 classic sense, only references, which simplifies some cases.
 
-There are much more compilers available, but most of them are proprietary or not
+There are many more compilers available, but most of them are proprietary or not
 maintained, as for example the Intel C++ Compiler (ICC) and VisualC++.
 
 It is very hard to compare many of the published results, as the
 implementations are not public, and mostly implemented for compilers that are
 unable to keep up with current C/C++ standards and successfully build modern
 (and big) projects. Many of the results are computed outside the compiler and
-never tested. But even if they were, there is no simple metric that could be
+never tested. Even if they were, there is no simple metric that could be
 used for comparison. The results rely on previous optimization passes,
 constraint generator, chosen granularity (wether to consider structure members or
 arrays) and finally queries asked by the compiler in later optimization phases.
+
+In the rest of this chapter we briefly summarize the state of art of alias
+analyzers in open-source compilers.
 
 \subsubsection{GCC}
 
@@ -348,15 +370,16 @@ package there is {\tt -basic-aa} pass, providing local alias information using
 many language-specific facts. It is similar to GCC's TBAA and Base-offset
 analysis.
 
-Additionally, there are three passes in {\tt poolalloc} package, the {\tt
+Additionally, the {\tt poolalloc} package provides a {\tt
 -globalsmodref-aa} pass, providing context-sensitive alias information for
-global variables (similar to GCC's {\tt ipa-reference pass}. It also implements
+global variables similar to GCC's {\tt ipa-reference pass}. It also implements
 the Steensgaard's algorithm in the {\tt -steens-aa} pass, and Andersen-style
 context and field-sensitive points-to analysis in {\tt -ds-aa}.
 
 \subsubsection{Open64}
 
-A new context-sensitive andersen-style alias analysis has been implemented in
+It traditionally implements TBAA, Base and offset analysis and PTA using
+Steensgaard's algorithm.  A new context-sensitive andersen-style alias analysis has been implemented in
 2013-2014 \cite{sui2014}, though the context sensitivity seems to be only
 partially implemented.
 

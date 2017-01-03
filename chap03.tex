@@ -48,11 +48,23 @@ INTERSECTION\_EMPTY} and {\tt UNION} has to be fast. There are a few other consi
 		of number of elements inserted.
 \end{itemize}
 
-\TODO{Rozvest}
-A simple bitmap is a straightforward solution, but the sparseness make it
-unviable. Many tree-like structures will have problems with the intersections
-and union as all the elements have to examined and deduplicated. Structures
-requiring pointers, storing element values or hashes do have large overhead.
+
+Traditionally GCC uses two basic types to represent sets. One called {\tt
+sbitmap}, which is plain bit array of given size, and second {\tt bitmap}, which
+is designed for storing sparse bitmaps. It consists of a linked list of blocks,
+each block containing 128 bits, and allows to skip long sequences of empty
+blocks. The implementation is relatively memory efficient and performs well on
+many dataflow solvers including bitwise {\tt AND} and {\tt OR}. In case only
+a few bits are set in a block, the worst-case complexity of $\O(n)$ for most
+operations comes into play and the stucture becomes unusable.  This is expected
+to happen relatively often. For example, Firefox has tens of millions of
+declarations, each of them can find itself in a set, with high probability to be
+a single bit in that set.
+
+A program can be made to generate arbitrary points-to sets. For this reason it
+is unrealistic to expect points-to sets to have some structural properties that
+could lead us to efficient and precise data structure. This leads us to consider
+non-exact data structures.
 
 \section{Bloom filters}
 
@@ -270,7 +282,7 @@ get the represented integer. We can now organize the data into {\it buckets} and
 	{\tt universe[offset$\cdot$hash].bit[data]}
 \end{center}
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 	\centering\hspace{2.5cm}
 	\includegraphics{img/bucketshop.pdf}
 	\caption{Bucket and superbuckets in an array.}
@@ -287,7 +299,7 @@ bucket has 64 bits, so it will fit up to 6bit data. Number of bits in hash and
 offset is not important and should be chosen by the size of Bloomap's side
 index.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \begin{tcolorbox}
 \begin{verbatim}
 struct superbucket {

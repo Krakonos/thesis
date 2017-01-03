@@ -15,7 +15,7 @@ unless they are developing one of them, they do not really have a good idea of h
 they are. The chart in Figure \ref{figure-loc} shows historical development of
 code-base size over the past 10 years for selected projects.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \centering
 	\hspace{-1cm}\includegraphics{graphs/loc/loc.pdf}
 \caption{Codebase size of Firefox, Chrome and GCC over time. \TODO{citace
@@ -33,7 +33,7 @@ noticed a significant start-up cost of dynamic linking, and
 bundled them together into a single library. This also means that compiler
 link-time optimizing this library has to deal with enormous code base at once.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \centering
 \includegraphics[angle=-90,trim=0 30 10 0,clip]{graphs/firefox-objsize/objsize.pdf}
 \caption{Firefox 50.0.2 object sizes by binary}
@@ -67,7 +67,7 @@ resolves required and provided symbols, dynamic libraris, and produces a
 final executable. The linker usually does only minimal modifications to the code
 in object files, as it only understands symbols and sections.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 \centering
 \includegraphics{./img/non-lto-workflow.pdf}
 \caption{Standard workflow for separate compilation}
@@ -141,7 +141,7 @@ issues. All the code needed to be parsed at once, which increases memory usage
 and does not scale well, as traditional compilers are single-threaded, and thus
 cannot make use of multi-processor and distributed system.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 	\centering
 	\includegraphics{./img/lto-workflow.pdf}
 	\caption{Compiling source code into binary}
@@ -239,7 +239,7 @@ should be required for regular development.
 
 The system was running 64bit Linux kernel 4.5 and standard Gentoo Linux
 installation. Memory and CPU usage measurements were taken using Linux Control
-Groups \TODO{cite} for whole compilation process, including GNU make and other tools. The
+Groups for whole compilation process, including GNU make and other tools. The
 data were sampled at one second intervals, which is more than enough. Total CPU
 usage is known precisely, as control groups keep cumulative counter. The
 activity at a given point is used only as a pointer as to how many cores are
@@ -256,7 +256,7 @@ Firefox, in a standard configuration, can be compiled within minutes. See Figure
 {\tt libxul.so} being invoked, the following spike is a parallel compilation of a few
 unit tests and miscellaneous parts.
 
-\begin{figure}[h!]
+\begin{figure}[!ht]
 	\centering
 	\includegraphics{./graphs/firefox-nolto/firefox-ipa-pta.pdf}
 	\caption{Compiling firefox without LTO}
@@ -270,7 +270,7 @@ spent during the LTO phase of {\tt libxul.so}, which is plotted separately in Fi
 Enabling the interprocedural alias analysis pass causes the compilation to end
 abruptly due to insufficient RAM.  See Figure \ref{figure-firefox-ipa-pta-lto8}
 for details: each drop in utilized CPU cores shows a moment where one LTO
-process was killed by the kernel on OOM condition (or finished successfully in
+process was killed by the kernel on out-of-memory condition (or finished successfully in
 later phases). This issue is remedied by running only 2 processes concurrently
 (see Figure \ref{figure-firefox-ipa-pta-lto2}).  However even in this setup the
 compiler used more than 27 GB RAM and it took around 18 hours to complete.
