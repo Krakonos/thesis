@@ -77,8 +77,8 @@ is controlled by new command line options:
 
 \begin{itemize}
 	\item {\tt -fipa-kpta} is an analog to {\tt -fipa-pta} and instructs the compiler to run the new IPA PTA algorithm during LTO phase, just after the original IPA PTA pass (if enabled).
-	\item {\tt --param kpta-bloomap-size=n} instructs the compiler to use a bloomap of specific size.
-	\item {\tt --param kpta-bloomap-precision=p} instructs the compiler to use a bloomap of specific precision. The value passed is inverted precision in percent, so a value of $100$ will result in a precision of $1\%$.
+	\item {\tt --param kpta-bloomap-size=n} forces a Bloomap of specific size.
+	\item {\tt --param kpta-bloomap-precision=p} forces a Bloomap of specific precision. The value passed is inverted precision in percent, so a value of $100$ will result in a precision of $1\%$.
 \end{itemize}
 
 
@@ -111,6 +111,10 @@ both the compile time and memory usage. See Figure
 hours for the old IPA PTA algorithm, and we could only utilize 2 cores due to
 memory requirements. The improved PTA algorithm finishes in just 16 minutes,
 utilizing approximately the same memory, but working in 8 threads instead of 2.
+Though the memory use is still not ideal, taking approximately 10 GB more than
+without any IPA PTA algorithm (see Figure \ref{figure-firefox-nolto} in the
+first chapter), is is now viable to enable IPA KPTA by default during LTO
+phase.
 
 \begin{figure}[h!]
 \begin{subfigure}[b]{\textwidth}
@@ -122,14 +126,31 @@ utilizing approximately the same memory, but working in 8 threads instead of 2.
 \begin{subfigure}[b]{\textwidth}
 	\centering
 	\includegraphics{./graphs/firefox-ipa-kpta/firefox-ipa-kpta.pdf}
-	\caption{Building libxul.so with {\tt -fipa-kpta -flto=8}}
+	\caption{{\tt libxul.so} with {\tt -fipa-kpta -flto=8}}
 	\label{figure-firefox-ipa-kpta}
 \end{subfigure}
 \caption{Comparison of build time with old and improved algorithm}
 	\label{figure-new-old-comparison}
 \end{figure}
 
-
-
-
 \section{Future work}
+
+The results are positive and show that Bloomaps are a competetive alternative
+to classical bitmaps. Not only will be interesting to use Bloomaps in other
+algorithms that do not require precision sets, but also further improving on IPA
+KPTA. It is possible to save even more memory by using deduplication or pruning
+of non-interestings sets (those that are too full or could point to anything).
+More precise analysis could be devised by starting with bitmaps and converting
+to Bloomaps in case they get too big to process, or by prefering bitmaps for
+sets that have to be enumerated, or are expected to be more important than others.
+
+It is also possible to decide Bloomap size and/or precision at runtime, as the
+approximate number of pointers and dereferences is available beforehand. A
+further extension to the Bloomaps using ideas in \cite{Guo06thedynamic}, though it
+is not clear how the side index should be constructed.
+
+The precision of the algorithm can also be improved, as it handles some cases
+as function parameters and return values too conservatively. As the improved
+algorithm is now able to analyze most programs in existence, we hope other
+developers will join the effort and improve the constraint generation as well.
+

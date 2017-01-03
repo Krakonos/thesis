@@ -1,2 +1,15 @@
 \chapter*{Conclusion}
 \addcontentsline{toc}{chapter}{Conclusion}
+
+In this work we have identified bitmaps as one of the most used data
+structure in GCC and one of its biggest users, the interprocedural
+points-to analysis. We have enhanced this algorithm with a new data
+structure based on bloom filters, the Bloomap. This decrease memory usage
+from 13 GB per process to 3 GB per process during link-time optimization
+phase. Build time for Firefox has been decreased from 18 hours with the
+old pass to around 16 minutes with the improved pass. This is a major
+improvement and enables us to analyze programs that could not have been
+analyzed before without excessive resource use.
+
+The code currently exists as a patch to GCC, but will be merged into the
+mainline.

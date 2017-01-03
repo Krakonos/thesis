@@ -2,13 +2,13 @@
 
 The goal of alias analysis is to enable optimizations across memory operations.
 It is used by other compiler components to disambiguate accesses to memory
-locations. We discuss most commonly used decision methods, with focus on points-to
-analysis.
+locations, enabling many optimizations. We discuss most commonly used decision
+methods, with focus on points-to analysis.
 
 \section{Common alias analysis methods}
 
-In the language C, a location is usually accessed by its name or a
-pointer. Disambiguating two accesses enables many optimizations, but missing an
+In the C Language, a memory location is usually accessed by its name or via a
+pointer. Disambiguating two accesses is necessary for many optimizations, but missing an
 alias might result in incorrect code generated. See example in Figure
 \ref{alias-example1}. The second assignment to {\tt b} might seem redundant, as
 {\tt a} could not have changed.  However, it is true only if the call to {\tt
@@ -31,10 +31,10 @@ void set_call_set(void) {
 \label{alias-example1}
 \end{figure}
 
-Accurately disambiguating memory references may be arbitrarily complex, but many
+Accurately disambiguating memory references may be arbitrarily complex. Many
 optimizations will be possible even with a minimal aliasing information.
 Consider example in Figure \ref{alias-example2}. The loop seems to write zeroes
-into an array of floats {\tt a}. This is true if the pointer dereference can not
+into an array {\tt a}. This is true if the pointer dereference can not
 change the pointer itself. Fortunately we do not need to examine any code not
 shown in the example. The C standard prohibits the dereference of {\tt float*}
 to modify {\tt float*} itself \cite{isoc}. This method is called {\it Type-Based
@@ -55,10 +55,9 @@ void fill_floats(void) {
 	\label{alias-example2}
 \end{figure}
 
-\subsection{May and Must-alias}
-
-It is useful to distinguish between may-alias and must-alias information.
-May-alias information indicates that the access may alias on at least one path
+Alias analysis can not be solved accurately.  We distinguish between may-alias
+and must-alias information, enabling us to give conservative answers.  May-alias
+information indicates that the access may alias on at least one path
 in the control flow graph. On the other hand, must-alias information requires
 alias in all possible paths. Consider example in Figure
 \ref{alias-example-maymust}. The information that ``{\tt p} points-to {\tt x} or
@@ -93,20 +92,18 @@ void fill_floats(void) {
 \end{figure}
 
 Alias analysis can be seen as a separate module of a compiler, which is accessed
-by optimization passes by the means of {\it Alias oracle}. This usually is a
+by optimization passes by the means of {\it alias oracle}. This usually is a
 function that given two memory accesses in a program answers if they can access
 the same memory location. The answer can be {\it yes}, {\it no} or {\it maybe}.
 A single oracle can apply multiple algorithms to determine the answer. The
 following three oracles are most often used:
 
-\subsection{Type based analysis}
 \label{sec-tbaa}
-
-As the name suggests, Type Based Alias Analysis (TBAA) infers aliasing
-information from types and language rules, as seen in Figure
-\ref{alias-example2}. This method is very fast, as it only needs to inspect
-the types in question. Due to the speed, it is usually asked first and is able
-to distinguish many cases by itself.
+\paragraph{Type Based Alias Analysis} (TBAA) infers aliasing information from
+types and language-specific rules, as seen in Figure \ref{alias-example2} for
+the C Language \cite{isoc}. This method is
+very fast, as it only needs to inspect the types in question. For this reason,
+it is usually asked first and is able to distinguish many cases by itself.
 
 \subsection{Base and offset analysis}
 \label{sec-baseoffset}
