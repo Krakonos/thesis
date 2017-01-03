@@ -16,11 +16,11 @@ they are. The chart in Figure \ref{figure-loc} show historical development of
 code-base size over the past 10 years for selected projects.
 
 \begin{figure}[h!]
-\label{figure-loc}
 \centering
 	\hspace{-1cm}\includegraphics{graphs/loc/loc.pdf}
 \caption{Codebase size of Firefox, Chrome and GCC over time. \TODO{citace
 	openhub.net}}
+\label{figure-loc}
 \end{figure}
 
 It might be tempting to say that the code will be split into many libraries. It
@@ -34,10 +34,10 @@ bundled them together into a single library. This also means that compiler
 optimizing this library has to deal with all the code at included.
 
 \begin{figure}[h!]
-\label{figure-firefox-objsize}
 \centering
 \includegraphics[angle=-90,trim=0 30 10 0,clip]{graphs/firefox-objsize/objsize.pdf}
 \caption{Firefox 50.0.2 object sizes by binary}
+\label{figure-firefox-objsize}
 \end{figure}
 
 We should keep these numbers in mind while designing a compiler. Compiler has
@@ -68,10 +68,10 @@ final executable. The linker usually does not modify code in object files, as it
 only understands symbols and sections.
 
 \begin{figure}[h!]
-\label{figure-non-lto-workflow}
 \centering
 \includegraphics{./img/non-lto-workflow.pdf}
 \caption{Standard workflow for separate compilation}
+\label{figure-non-lto-workflow}
 \end{figure}
 
 
@@ -134,10 +134,10 @@ increases memory usage and does not scale well, as language parsers are not
 usually parallel, and thus cannot make use of multi processor system.
 
 \begin{figure}[h!]
-	\label{figure-lto-workflow}
 	\centering
 	\includegraphics{./img/lto-workflow.pdf}
 	\caption{Compiling source code into binary}
+	\label{figure-lto-workflow}
 \end{figure}
 
 The LTO framework (see Figure \ref{figure-lto-workflow}) solves these problems by keeping separate compilation, but
@@ -249,10 +249,10 @@ Firefox, in a standard configuration, can be compiled within minutes. See Figure
 unit tests and miscellaneous parts.
 
 \begin{figure}[h!]
-	\label{figure-firefox-nolto}
 	\centering
 	\includegraphics{./graphs/firefox-nolto/firefox-ipa-pta.pdf}
 	\caption{Compiling firefox without LTO}
+	\label{figure-firefox-nolto}
 \end{figure}
 
 Enabling LTO results in slightly longer compile time, but most of the time is
@@ -269,22 +269,22 @@ compiler used more than 27 GB RAM and it took around 18 hours to complete.
 
 \begin{figure}
 \begin{subfigure}[b]{\textwidth}
-	\label{figure-firefox-lto8}
 	\centering
 	\includegraphics{./graphs/firefox-lto8/firefox-ipa-pta.pdf}
 	\caption{{\tt libxul.so} with {\tt -flto=8}}
+	\label{figure-firefox-lto8}
 \end{subfigure}
 \begin{subfigure}[b]{\textwidth}
-	\label{figure-firefox-ipa-pta-lto8}
 	\centering
 	\includegraphics{./graphs/firefox-ipa-pta-lto8/firefox-ipa-pta.pdf}
 	\caption{{\tt libxul.so} with {\tt -fipa-pta -flto=8}}
+	\label{figure-firefox-ipa-pta-lto8}
 \end{subfigure}
 \begin{subfigure}[b]{\textwidth}
-	\label{figure-firefox-ipa-pta-lto2}
 	\centering
 	\includegraphics{./graphs/firefox-ipa-pta-lto2/firefox-ipa-pta.pdf}
 	\caption{{\tt libxul.so} with {\tt -fipa-pta -flto=2}}
+	\label{figure-firefox-ipa-pta-lto2}
 \end{subfigure}
 \caption{Compiling {\tt libxul.so} with different optimization options}
 \end{figure}
@@ -301,17 +301,17 @@ bitmap\_elt\_ior} taking almost all the CPU time. This clearly shows the IPA-PTA
 pass could benefit from bitmap and/or algorithm optimizations.
 
 \begin{table}
-\label{table-profile-lto}
 \centering
 \noindent\input{./tables/report-noextra.txt.tex}
 \caption{{\tt perf} profile with {\tt -flto}}
+\label{table-profile-lto}
 \end{table}
 
 \begin{table}
-\label{table-profile-lto-pta}
 \centering
 \noindent\input{./tables/report-pta.txt.tex}
 \caption{{\tt perf} profile with {\tt -flto -fipa-pta}}
+\label{table-profile-lto-pta}
 \end{table}
 
 

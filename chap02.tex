@@ -15,7 +15,6 @@ alias might result in incorrect code generated. See example in Figure
 some\_fn} did not change variable {\tt b}.
 
 \begin{figure}[h!]
-\label{alias-example1}
 \begin{tcolorbox}
 \begin{lstlisting}{language=c,tabsize=2}
 void set_call_set(void) {
@@ -29,6 +28,7 @@ void set_call_set(void) {
 \end{lstlisting}
 \end{tcolorbox}
 \caption{Example of the importance of alias information}
+\label{alias-example1}
 \end{figure}
 
 Accurately disambiguating memory references may be arbitrarily complex, but many
@@ -41,7 +41,6 @@ to modify {\tt float*} itself \cite{isoc}. This method is called {\it Type-Based
 Alias Analysis} (TBAA).
 
 \begin{figure}[h!]
-	\label{alias-example2}
 \begin{tcolorbox}
 \begin{lstlisting}{language=c,tabsize=2}
 void fill_floats(void) {
@@ -53,6 +52,7 @@ void fill_floats(void) {
 \end{lstlisting}
 \end{tcolorbox}
 	\caption{Example of the importance of alias information}
+	\label{alias-example2}
 \end{figure}
 
 \subsection{May and Must-alias}
@@ -68,7 +68,6 @@ holds on all paths in the example. Notice that must-alias always returns a
 single element, may-alias usually returns larger points-to sets.
 
 \begin{figure}[h!]
-\label{alias-example-maymust}
 \begin{tcolorbox}
 \begin{lstlisting}{language=c++,tabsize=2}
 void fill_floats(void) {
@@ -90,6 +89,7 @@ void fill_floats(void) {
 \end{lstlisting}
 \end{tcolorbox}
 \caption{Example of may and must-aliasing}
+\label{alias-example-maymust}
 \end{figure}
 
 Alias analysis can be seen as a separate module of a compiler, which is accessed
@@ -100,6 +100,7 @@ A single oracle can apply multiple algorithms to determine the answer. The
 following three oracles are most often used:
 
 \subsection{Type based analysis}
+\label{sec-tbaa}
 
 As the name suggests, Type Based Alias Analysis (TBAA) infers aliasing
 information from types and language rules, as seen in Figure
@@ -108,6 +109,7 @@ the types in question. Due to the speed, it is usually asked first and is able
 to distinguish many cases by itself.
 
 \subsection{Base and offset analysis}
+\label{sec-baseoffset}
 
 In the case of structures or arrays, the access is composed of base pointer and
 an offset. The offset information might not be complete, but sometimes the range
@@ -245,7 +247,6 @@ The structure of proposed Andersen's flow-insensitive algorithm is shown in Figu
 \ref{figure-andersen}.
 
 \begin{figure}[h!]
-\label{figure-andersen}
 \begin{tcolorbox}
 \begin{enumerate}
 	\item Initialize variables using \ref{aa-init}.
@@ -260,6 +261,7 @@ The structure of proposed Andersen's flow-insensitive algorithm is shown in Figu
 \end{enumerate}
 \end{tcolorbox}
 \caption{Andersen's algorithm}
+\label{figure-andersen}
 \end{figure}
 
 \subsubsection{Steensgaard's algorithm}
@@ -336,32 +338,28 @@ used for comparison. The results rely on previous optimization passes,
 constraint generator, chosen granularity (wether to consider structure members or
 arrays) and finally queries asked by the compiler in later optimization phases.
 
-
-\subsubsection{LLVM/Clang}
-
-As LLVM is very modular, it contains multiple alias analysis passes. 
-
-\begin{itemize}
-	\item {\bf -basic-aa} pass, providing local alias information using many
-		language-specific facts.
-\end{itemize}
-
-Additionally, there are three passes in {\tt poolalloc} package:
-
-\begin{itemize}
-	\item {\bf -globalsmodref-aa} pass, providing context-sensitive alias
-		information for global variables
-	\item {\bf -steens-aa} pass, implementing Steensgaard's algorithm.
-	\item {\bf -ds-aa} pass, implementing unification-based Data Structure
-		analysis, providing context and field sensitive alias information.
-\end{itemize}
-
-
 \subsubsection{GCC}
 
 GCC has a good support for TBAA and Base-offset analysis, intraprocedural
-points-to analysis, but lacks a good interprocedural points-to analysis.
+points-to analysis, but lacks a good interprocedural points-to analysis. We
+discuss details in later chapters.
+
+\subsubsection{LLVM/Clang}
+
+As LLVM is very modular, it contains multiple alias analysis passes. In the core
+package there is {\tt -basic-aa} pass, providing local alias information using
+many language-specific facts. It is similar to GCC's TBAA and Base-offset
+analysis.
+
+Additionally, there are three passes in {\tt poolalloc} package, the {\tt
+-globalsmodref-aa} pass, providing context-sensitive alias information for
+global variables (similar to GCC's {\tt ipa-reference pass}. It also implements
+the Steensgaard's algorithm in the {\tt -steens-aa} pass, and Andersen-style
+context and field-sensitive points-to analysis in {\tt -ds-aa}.
 
 \subsubsection{Open64}
 
-\TODO{New AA in 2013}
+A new context-sensitive andersen-style alias analysis has been implemented in
+2013-2014 \cite{sui2014}, though the context sensitivity seems to be only
+partially implemented.
+
