@@ -1,4 +1,5 @@
 \chapter{From Bloom filters to Bloomaps}
+\label{chap-bloomaps}
 
 During points-to analysis the datastructure is almost as important as the
 algorithm used. In the case of GCC, the structure chosen is a hybrid of bitmap
@@ -7,12 +8,12 @@ with large data. Converting to a better data structure is relatively easy task, 
 structures are available? We will start by examining the needs of a typical
 Andersen-style algorithm and comparing theoretical complexities of various well
 known data structures. In the rest of this chapter we will describe a new
-enhancement of bloom filters called Bloomaps, tailored specifically for the use
+enhancement of Bloom filters called Bloomaps, tailored specifically for the use
 in points-to analysis.
 
 \section{Requirements}
 
-As a basic data structure for PTA, we need a data structure holding sets of
+As a basic data structure for points-to analysis, we need a data structure holding sets of
 integers that is compact and has the following operations.
 
 \begin{itemize}
@@ -30,9 +31,10 @@ The algorithm uses the following operations in the following way:
 \begin{itemize}
 	\item Initialization: {\tt INSERT} used to populate points-to sets with
 		memory locations assigned to them.
-	\item Propagation: {\tt UNION} for every copy constraint, {\tt ENUMERATE} and
-		{\tt UNION} for dereferences.
-	\item Oracle queries: {\tt QUERY} for set membership, {\tt INTERSECTION\_EMPTY}
+	\item Propagation: {\tt UNION} is used for every copy constraint, {\tt ENUMERATE} and
+		{\tt UNION} for dereferences. Majority of time and memory is consumed by
+		the propagation stage.
+	\item Oracle queries: {\tt QUERY} is used for set membership, {\tt INTERSECTION\_EMPTY}
 		for set disjointness
 \end{itemize}
 
@@ -50,25 +52,23 @@ INTERSECTION\_EMPTY} and {\tt UNION} has to be fast. There are a few other consi
 
 
 Traditionally GCC uses two basic types to represent sets. One called {\tt
-sbitmap}, which is plain bit array of given size, and second {\tt bitmap}, which
-is designed for storing sparse bitmaps. It consists of a linked list of blocks,
+sbitmap}, which is plain bit array of a given size, and second {\tt bitmap}, which
+is designed for storing sparse bitmaps. The later consists of a linked list of blocks,
 each block containing 128 bits, and allows to skip long sequences of empty
 blocks. The implementation is relatively memory efficient and performs well on
 many dataflow solvers including bitwise {\tt AND} and {\tt OR}. In case only
 a few bits are set in a block, the worst-case complexity of $\O(n)$ for most
-operations comes into play and the stucture becomes unusable.  This is expected
-to happen relatively often. For example, Firefox has tens of millions of
-declarations, each of them can find itself in a set, with high probability to be
-a single bit in that set.
-
-A program can be made to generate arbitrary points-to sets. For this reason it
+operations comes into play and the stucture becomes unusable in points-to
+solver.  This is expected to happen relatively often. For example, Firefox has
+tens of millions of declarations, each of them can find itself in a set, with
+high probability to be a single bit in that set.  A program can be made to generate arbitrary points-to sets. For this reason it
 is unrealistic to expect points-to sets to have some structural properties that
 could lead us to efficient and precise data structure. This leads us to consider
 non-exact data structures.
 
 \section{Bloom filters}
 
-A bloom filter is a classical probabilistic data structure, invented by Burton
+A Bloom filter is a classical probabilistic data structure, invented by Burton
 Howard Bloom \cite{Bloom1970}. The goal is to provide a data structure
 that has some nonzero probability of {\it false-positive}, but zero probability
 of {\it false-negative}. This is accomplished by taking a bit field of $m$ bits,
@@ -86,15 +86,15 @@ the hashes can be computed in constant time, which is often possible):
 \begin{itemize}
 	\item {\tt QUERY} in $\O(1)$ time.
 	\item {\tt INSERT} in $\O(1)$ time.
+	\item {\tt UNION} in $\O(m)$ time (bitwise OR).
+	\item {\tt BITWISE\_INTERSECTION} in $\O(m)$ time.
 	\item {\tt DELETE, ENUMERATE, RESIZE} not supported\footnote{Though there
 		are variations that support these oprations, only {\tt RESIZE} is usually
 		possible without drastic changes to the structure.}.
-	\item {\tt UNION} in $\O(m)$ time (bitwise OR).
-	\item {\tt BITWISE\_INTERSECTION} in $\O(m)$ time.
 \end{itemize}
 
-Unlike in simple bitmaps, bitwise intersection of bloom filters is not equal to
-set intersection.  Denote by $BF(A)$ a bloom filter created from empty
+Unlike in simple bitmaps, bitwise intersection of Bloom filters is not equal to
+set intersection.  Denote by $BF(A)$ a Bloom filter created from empty
 filter by inserting elements from $A$ one by one. Then for $A,B$ it does not
 hold that $BF(A \cap B) = BF(A) \cap BF(B)$. While the inequality $BF(A \cap B)
 \subseteq BF(A) \cap BF(B)$ holds, it is nowhere near the equality. Most
@@ -103,7 +103,7 @@ single bit in {\tt BITWISE\_INTERSECTION} causes the filter to be non-empty.
 
 \section{Bloom filter intersection}
 
-Although a bloom filter intersection easily computed with bitwise {\tt AND},
+Although a Bloom filter intersection is easily computed with bitwise {\tt AND},
 it is rarely accurate. As proven in \cite{bose2008false}, the probability that
 $BF(A\cap B) = BF(A) \cap BF(B)$ is:
 
@@ -113,25 +113,25 @@ $BF(A\cap B) = BF(A) \cap BF(B)$ is:
 
 \noindent For {\tt INTERSECTION\_EMPTY}, we can further simplify the formula by
 considering two cases: $|A \cap B| > 0$ and $|A \cap B| = 0$. Assuming that
-$|A\cap B| = 0$, the probability that $BF(A) \cap BF(B)$ is also empty, is as
+$|A\cap B| = 0$, the probability that $BF(A) \cap BF(B)$ is also empty. It is as
 follows:
 \begin{align*}
-	p_{empty} = (1-1/m)^{k^2 \cdot |A| \cdot |B|}
+	p_{empty} = (1-1/m)^{k^2 \cdot |A| \cdot |B|} \mathrm{.}
 \end{align*}
 
 Jeffrey and Steffan \cite{Jeffrey2011} showed a slightly improved bound with
-partitioned bloom filters.
+partitioned Bloom filters.
 
 \begin{align*}
-	p_{empty} = \left(1 - \left( 1 - {k \over m}\right)^{|A|\cdot |B|}\right)^k \mathrm{.}
+	p_{empty} = \left(1 - \left( 1 - \frac{k}{m}\right)^{|A|\cdot |B|}\right)^k \mathrm{.}
 \end{align*}
 
-Partitioned bloom filter has a separate partition for each hash function of size
+Partitioned Bloom filter has a separate partition for each hash function of size
 $m/k$, therefore it is enough to have one empty partition to consider the filter
 empty, as every query would result in false in this empty partition.
 
 The same paper also proved that pure Bloom filter intersection is more
-memory consuming than more conventional queue-of-queries. In the next section,
+memory consuming than storing inserted elements in an linked list. In the next section,
 a hybrid solution is provided that can be used with both of these approaches,
 based on the time requirements.
 
@@ -150,7 +150,7 @@ universe. This is possible for small and dense universe, and appropriately sized
 Even for almost empty filter, this approach takes $\O(|U|)$ time.
 
 \paragraph{Keep a Queue-of-queries for each filter.} This approach is suggested
-by \cite{Jeffrey2011}. We keep a queue of elements inserted into the filter,
+by \cite{Jeffrey2011}. This idiom is to keep a queue of elements inserted into the filter,
 which is evaluated in case the elements need to be enumerated. The queue usually
 holds each element as many times as it has been inserted. The filter has
 limited capacity, so as long as we do not insert elements many times over
@@ -159,22 +159,21 @@ work well with {\tt UNION}, as the lists would have to be either concatenated
 (in which case the lists would grow exponentially) or pruned after each union,
 which would be essentially same as using bitmaps.
 
-\paragraph{Alternative structures.} An alternative structure has been proposed,
-the Invertible Bloom
-Lookup Tables (IBLT), by Michael T. Goodrich \cite{goodrich:2011}. The problem of IBLT is
-that they have non-zero probability of being unable to produce a complete list
-of entries, and do not provide the advantages of classic Bloom filters, as a
-fast intersection and membership queries. This said, we will not attempt to use
-them, although they are an interesting structure for future work and may find
-its use in other optimizers.
+\paragraph{Alternative structures.} A structure has been proposed by Michael T.
+Goodrich \cite{goodrich:2011}, called Invertible Bloom Lookup Tables (IBLT). The
+problem of IBLT is that they have non-zero probability of being unable to
+produce a complete list of entries, and do not provide the advantages of classic
+Bloom filters, as a fast intersection and membership queries. This said, we will
+not attempt to use them, although they are an interesting structure for future
+work and may find its use in other optimizers.
 
 Neither of these methods are good for use in points-to analysis, as our universe
-can be large (millions of lines of code), and the number of filters is about the
+can be large (tens of millions of lines of code), and the number of filters is about the
 same size as the universe. We introduce a new approach, a compromise between the
 two above.
 
 \paragraph{Keep a single Queue-of-queries for all filters.} The number of sets
-in PTA prohibits the use of queue-of-queries for each filter. The universe
+in points-to analysis prohibits the use of queue-of-queries for each filter. The universe
 enumeration could be used, but is wasteful as only some variables will ever be
 inserted in the set. However, we can keep a global queue-of-queries for all
 filters used in the algorithm. Each element inserted will be recorded in an
@@ -234,7 +233,7 @@ ENUMERATE} functions. Overview of Bloomap structure is shown in Figure
 
 
 
-Both of them are pretty straightforward, as {\tt INSERT} is a regular function
+Both stuctures are pretty straightforward, as {\tt INSERT} is a regular function
 for Bloom filter insertion, with the added partition for side index and family
 universe insertion.
 
@@ -242,21 +241,28 @@ While insertion in Bloom filter is in $\O(1)$, inserting into a universe may be
 $\O(\log n)$ for tree-based implementations or amortized $\O(1)$ for hash-based
 implementations. There probably is not a better solution in generic case,
 but we suggest a worst-case $\O(1)$ for 32 bit integers (dense sequence of
-ids starting from 0).
+ids starting from zero).
 
-The Bloomap achieves the following theoretical complexity:
+The Bloomap achieves the following theoretical time complexity:
 
 \begin{itemize}
 	\item {\tt QUERY} in $\O(1)$ time.
 	\item {\tt INSERT} in $\O(1)$, assuming $\O(1)$ insertion into universe
 		index.
-	\item {\tt DELETE{\rm ,} RESIZE} not supported.
 	\item {\tt ENUMERATE} in $\O(|U|)$ in worst case, assuming universe index
 		suggested in section \ref{sec-compact-representation} and $|U|$ the size
 		of the index.
 	\item {\tt UNION} in $\O(m)$ time.
 	\item {\tt BITWISE\_INTERSECTION} in $\O(m)$ time.
+	\item {\tt DELETE{\rm ,} RESIZE} not supported.
 \end{itemize}
+
+Though the theoretical complexity of {\tt ENUMERATE} seems very bad, leading
+potentially to tens of millions of queries. Here the constant is important, as
+the Bloomap will rarely be completely full and most of the queries will be
+filtered by the side index and universe index. We can also further optimize the
+algorithm to reject enumeration of Bloomap that has more elements than designed
+for.
 
 \subsection{Compact representation of dense integer universe}
 \label{sec-compact-representation}
@@ -349,21 +355,13 @@ struct BloomapFamily {
 }
 \end{verbatim}
 \end{tcolorbox}
-\caption{Bloomap and BloomapFamily prototypes}
+	\caption{Bloomap and BloomapFamily prototypes (in pseudocode)}
 \label{figure-bloomap-decl}
 \end{figure}
 
 \begin{figure}[!ht]
 \begin{tcolorbox}
 \begin{verbatim}
-bool Bloomap::QUERY(element) {
-  for (i := 1..k) {
-    if (partitions[i][hash_fn(i,element) % m/k] == 0)
-      return false;
-  }
-  return true;
-}
-
 void Bloomap::INSERT(element) {
   # Decompose element to offset, index_hash and data.
   (offset,index_hash,data) := element;
@@ -374,6 +372,14 @@ void Bloomap::INSERT(element) {
   }
   # Insert into universe index of a family
   f.universe[index_hash] += element;
+}
+
+bool Bloomap::QUERY(element) {
+  for (i := 1..k) {
+    if (partitions[i][hash_fn(i,element) % m/k] == 0)
+      return false;
+  }
+  return true;
 }
 
 void Bloomap::UNION(another) {
@@ -387,8 +393,10 @@ void Bloomap::UNION(another) {
 
 vector Bloomap::ENUMERATE() {
   vector list = ();
+  # Check each element in side index
   for (i := 1..s | index[i] == true) {
-  	for (element in f.universe[i] && this.QUERY(element)) 
+    # Test for every element universe lists for this index
+    for (element in f.universe[i] && this.QUERY(element)) 
       list += element;
   }
   return list;
@@ -396,6 +404,6 @@ vector Bloomap::ENUMERATE() {
 
 \end{verbatim}
 \end{tcolorbox}
-\caption{Pseudocode for basic Bloomap operations}
+\caption{Basic Bloomap operations (in pseudocode)}
 \label{figure-bloomap-fn}
 \end{figure}

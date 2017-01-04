@@ -24,7 +24,7 @@
 As soon as programs started their growth, it became necessity to split them into
 functions, and later into compilation units. This shields the programmer from
 unnecessary technical details of implementation, and allows him to concentrate on
-the actual work. The same limits the scope of the compiler, which can not
+the actual work. The same structure limits the scope of the compiler, which can not
 optimize beyond unit boundaries.  This is a major disadvantage as the compiler
 needs as much information as it can get to generate better code.
 
@@ -35,17 +35,17 @@ We have reached the point where advanced optimizations could be performed even
 on very large programs.
 
 In 2009, the GCC (GNU Compiler Collection) project merged link-time optimizer, which enables
-analysis and optimization on scope of all compilation units. This offers new
+analysis and optimization on scope of whole program or shared library. This offers new
 opportunities for improvement, but also new challenges. Some of the existing
 algorithms can easily process whole programs, some have limitations, and some
 of them are just too slow and/or memory intesive to be used in production.
 
 The goal of this thesis is to explore current link-time optimization
-techniques, identify a bottleneck, and improve upon it. 
+techniques, identify bottlenecks, and improve upon it. 
 
 This thesis is organized as follows: We introduce compilation and link-time
-optimization techniques in the first chapter. Focus on Alias Analysis problem
-and it's possible solutions in the second chapter, with emphasis on practical
+optimization techniques in the first chapter. We focus on Alias Analysis problem
+and its possible solutions in the second chapter, with emphasis on practical
 use in current compilers. We improve upon Andersen's inclusion-based algorithm
 in the third chapter using efficient data-structure derived from Bloom
 filters, sacrificing some precision for tractability, and compare the results

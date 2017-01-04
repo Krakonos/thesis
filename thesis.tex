@@ -100,20 +100,14 @@ Dedication.
 
 % Abstract (recommended length around 80-200 words; this is not a copy of your thesis assignment!)
 \def\Abstract{%
-\TODO{This is assignment. Replace with proper abstract!}
-Moderní překladače programovacích jazyků obsahují velké množství optimalizací,
-které vedou ke zrychlení a zmenšení výsledného programu. V posledních letech
-je stále častějších optimalizovat program jako celek místo tradičního modelu,kde
-se jednotlivé zdrojové soubory přeloží a optimalizují samostatně. Tento postup
-vede k nutnosti řešit probémy nad velkými grafy, které často obsahují desítky až
-miliony vrcholů. Optimalizace navržené pro výrazně menší jednotky překladu pak
-vyžadují nepřiměřené množství času a paměti.
-
-Řešitel prostuduje datové strukty určené k práci nad velkými grafy a seznámí se
-s implementací jednotlivých optimalizací v GNU Compiler Collection (GCC) se
-zaměřením na interprocedurální points-to analýzu. Posoudí praktickou
-použitelnost pokročilých datových struktur a algoritmů ke zlepšení
-škálovatelnosti a prakticky implementuje vybrané z nich.
+Both major open-source compilers, GCC and LLVM, have a mature link-time
+optimization framework usable on most current programs. They are however not
+free from many performance issues, which prevent them to perform certain
+analyses and optimizations. We analyze bottlenecks and identify multiple places
+for improvement, focusing on improving interprocedural points-to analysis. For
+this purpose, we design a new data structure derived from Bloom filters and use
+it to significantly improve performance and memory consumption of link-time
+optimization.
 }
 
 % 3 to 5 keywords (recommended), each enclosed in curly braces
@@ -180,6 +174,8 @@ použitelnost pokročilých datových struktur a algoritmů ke zlepšení
 %%% source code, data files, interactive charts, etc.). Electronic attachments
 %%% should be uploaded to SIS and optionally also included in the thesis on a~CD/DVD.
 \chapwithtoc{Attachments}
+\label{attachments}
+\input{attach}
 
 \openright
 \end{document}

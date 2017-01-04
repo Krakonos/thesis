@@ -1,8 +1,9 @@
 \chapter{Using Bloomaps in points-to analysis}
+\label{chap-bloomaps-aa}
 
 In this chapter we discuss the internals of points-to analysis as
 implemented in the GCC compiler and how it was augmented by the use of Bloomaps
-instead of regular bitmaps. We will then show how the change affected GCC and
+instead of regular bitmaps. Later we show how the change affected GCC and
 discuss future work.
 
 \section{Points-to analysis in GCC}
@@ -25,10 +26,10 @@ overview of this algorithm is on Figure \ref{figure-gcc-aliasalg}.
 \begin{tcolorbox}
 \begin{enumerate}
 	\item Allocate {\tt varinfo\_t} structure for each variable. {\tt varinfo\_t} includes
-		metadata and a solution set $\Sol(x)$.
-	\item Find constraints in form of {\tt p = \&q} (direct constraints), and
+		metadata and a solution set.
+	\item Find constraints in the form of {\tt p = \&q} (direct constraints), and
 		use them to initialize the solution sets.
-	\item Find constraints in form of {\tt p = q} (copy constraints), and use
+	\item Find constraints in the form of {\tt p = q} (copy constraints), and use
 		them to build a constraint graph on variables. For example for {\tt p =
 		q} constraint an edge {\tt q $\to$ p} is inserted to the graph.
 	\item Find other constraints in form of {\tt *p = q} or {\tt p = *q} or
@@ -38,8 +39,8 @@ overview of this algorithm is on Figure \ref{figure-gcc-aliasalg}.
 	\item Put all graph vertices into a worklist.
 	\item Take a vertex from the worklist. Process all complex constraints
 		(possibly adding more copy edges to the graph) and propagate the set
-		along the copy edges. Put all vertices modified by this operation into the
-		worklist.
+		along the copy edges, including complex constraints. Put all vertices
+		modified by this operation into the worklist.
 	\label{gcc-aa-propstep}
 	\item Repeat step \ref{gcc-aa-propstep}. while there are elements in the worklist.
 \end{enumerate}
@@ -84,21 +85,20 @@ is controlled by new command line options:
 
 \subsection{Integrating Bloomaps}
 
-Integrating bloomaps was relatively straightforward. The following steps were necessary, as some operations do not map well to Bloomap operations.
+Integrating Bloomaps was relatively straightforward. The following steps were necessary, as some operations do not map well to Bloomap operations.
 
 \begin{itemize}
 	\item The main loop in {\tt solve\_graph()} keeps two solution sets: a
 		current one and one from previous iteration. When new elements are to
 		be propagated (via complex constraints), only the difference is
 		examined to make changes. This is a nice optimization for classical
-		bitmaps, Bloomap has no easy method to list difference and would have
-		to be enumerated. This is unavoidable, but we do not store two bloomaps
-		just for this optimization.
+		bitmaps. However, Bloomap has no easy method to list difference and
+		would have to be enumerated. 
 	\item Due to historical reasons, two identifiers were used in the
 		algorithm. This is no longer necessary and one of them was removed.
 	\item Finished solutions were deduplicated, merging same sets into one. This
 		results in a less memory use, but is not worth the effort
-		for bloomaps, as they are already very space efficient.
+		for Bloomaps, as they are already very space efficient.
 	\item Unnecessary bitmap enumerations were removed and the remaining ones
 		optimized to reduce the number of passes.
 \end{itemize}
@@ -109,12 +109,11 @@ By using Bloomaps instead of classical bitmaps, we have improved significantly
 both the compile time and memory usage. See Figure
 \ref{figure-new-old-comparison} for comparison. We measured compile time in
 hours for the old IPA PTA algorithm, and we could only utilize 2 cores due to
-memory requirements. The improved PTA algorithm finishes in just 16 minutes,
+memory requirements. The improved IPA PTA algorithm finishes in just 16 minutes,
 utilizing approximately the same memory, but working in 8 threads instead of 2.
-Though the memory use is still not ideal, taking approximately 10 GB more than
-without any IPA PTA algorithm (see Figure \ref{figure-firefox-nolto} in the
-first chapter), is is now viable to enable IPA KPTA by default during LTO
-phase.
+Though the memory use is still not ideal, taking approximately extra 10 GB (see
+Figure \ref{figure-firefox-nolto} in the first chapter). It is now viable to
+enable IPA KPTA by default during LTO phase.
 
 \begin{figure}[!ht]
 \begin{subfigure}[b]{\textwidth}
@@ -133,9 +132,20 @@ phase.
 	\label{figure-new-old-comparison}
 \end{figure}
 
+We have also analyzed the precision lost by using Bloomaps instead of an exact
+data structure. There is no good metric to use, as a single difference in
+answer might add or prevent some following queries. We implemented a special
+procedure that compares IPA PTA and KPTA results where boths sets are computed,
+and provide a comparison by intersecting all pairs of sets. A percentage of all
+non-empty intersection is computed for both the old and new algorithm. This
+approach is not ideal, as the absolute percentage varies greatly between
+problem instances, but the relative difference is mostly stable. The precision
+achieved was always within $2\%$ of exact algorithm and some minor improvements
+were made using additional checks via enumeration.
+
 \section{Future work}
 
-The results are positive and show that Bloomaps are a competetive alternative
+Our results demonstrate that Bloomaps are a competetive alternative
 to classical bitmaps. Not only will be interesting to use Bloomaps in other
 algorithms that do not require precision sets, but also further improving on IPA
 KPTA. It is possible to save even more memory by using deduplication or pruning
@@ -149,8 +159,12 @@ approximate number of pointers and dereferences is available beforehand. A
 further extension to the Bloomaps using ideas in \cite{Guo06thedynamic}, though it
 is not clear how the side index should be constructed.
 
-The precision of the algorithm can also be improved, as it handles some cases
+The precision of the algorithm can also be improved. It handles some cases
 as function parameters and return values too conservatively. As the improved
 algorithm is now able to analyze most programs in existence, we hope other
 developers will join the effort and improve the constraint generation as well.
 
+As the algorithm now scales, it should be possible to generate constraints
+during compilation, compute points-to sets during WPA phase (for whole program
+rather than partitions) and stream the results into LTRANS. This would result
+in even better propagation and is similarly implemented in Open64.

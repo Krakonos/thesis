@@ -1,4 +1,5 @@
 \chapter{Alias Analysis}
+\label{chap-aa}
 
 The goal of alias analysis is to enable optimizations across memory operations.
 It is used by other compiler components to disambiguate accesses to memory
@@ -7,7 +8,7 @@ methods, with focus on points-to analysis.
 
 \section{Common alias analysis methods}
 
-In the C Language, a memory location is usually accessed by its name or via a
+In the C language, a memory location is usually accessed by its name or via a
 pointer. Disambiguating two accesses is necessary for many optimizations, but missing an
 alias might result in incorrect code generated. See example in Figure
 \ref{alias-example1}. The second assignment to {\tt b} might seem redundant, as
@@ -16,23 +17,23 @@ some\_fn} did not change variable {\tt b}.
 
 \begin{figure}[!ht]
 \begin{tcolorbox}
-\begin{lstlisting}{language=c,tabsize=2}
+\begin{verbatim}
 void set_call_set(void) {
-	int a,b;
-	[...]
-	b = a + 1;
-	some_fn(a, &b);
-	b = a + 1;
-	[...]
+  int a,b;
+  [...]
+  b = a + 1;
+  some_fn(a, &b);
+  b = a + 1;
+  [...]
 }
-\end{lstlisting}
+\end{verbatim}
 \end{tcolorbox}
 \caption{Example of the importance of alias information}
 \label{alias-example1}
 \end{figure}
 
 Accurately disambiguating memory references may be arbitrarily complex. Many
-optimizations will be possible even with a minimal aliasing information.
+optimizations will however be possible even with a minimal aliasing information.
 Consider example in Figure \ref{alias-example2}. The loop seems to write zeroes
 into an array {\tt a}. This is true if the pointer dereference can not
 change the pointer itself. Fortunately we do not need to examine any code not
@@ -42,14 +43,14 @@ Alias Analysis} (TBAA).
 
 \begin{figure}[!ht]
 \begin{tcolorbox}
-\begin{lstlisting}{language=c,tabsize=2}
+\begin{verbatim}
 void fill_floats(void) {
-	float* a;
-	[...]
-	for (int i = 0; i < 10; i++)
-		*(a++) = 0;
+  float* a;
+  [...]
+  for (int i = 0; i < 10; i++)
+    *(a++) = 0;
 }
-\end{lstlisting}
+\end{verbatim}
 \end{tcolorbox}
 	\caption{Example of the importance of alias information}
 	\label{alias-example2}
@@ -57,7 +58,7 @@ void fill_floats(void) {
 
 Alias analysis can not be solved accurately.  We distinguish between may-alias
 and must-alias information, enabling us to give conservative answers.  May-alias
-information indicates that the access may alias on at least one path
+information indicates that the same memory can be accessed on at least one path
 in the control flow graph. On the other hand, must-alias information requires
 alias in all possible paths. Consider example in Figure
 \ref{alias-example-maymust}. The information that ``{\tt p} points-to {\tt x} or
@@ -68,24 +69,23 @@ single element, may-alias usually returns larger points-to sets.
 
 \begin{figure}[!ht]
 \begin{tcolorbox}
-\begin{lstlisting}{language=c++,tabsize=2}
+\begin{verbatim}
 void fill_floats(void) {
-	int *p,*q;
-	int x,y;
-	[...]
-	q = &x;
-	if (x > y) {
-		p = &x;
-		[...]
-	} else {
-		p = &y;
-		[...]
-	}
-	*p = 0;
-	[...]
-	
+  int *p,*q;
+  int x,y;
+  [...]
+  q = &x;
+  if (x > y) {
+    p = &x;
+    [...]
+  } else {
+    p = &y;
+    [...]
+  }
+  *p = 0;
+  [...]
 }
-\end{lstlisting}
+\end{verbatim}
 \end{tcolorbox}
 \caption{Example of may and must-aliasing}
 \label{alias-example-maymust}
@@ -100,14 +100,15 @@ following three oracles are most often used:
 
 \label{sec-tbaa}
 \paragraph{Type Based Alias Analysis} (TBAA) infers aliasing information from
-types and language-specific rules, as seen in Figure \ref{alias-example2} for
-the C Language \cite{isoc}. This method is
-very fast, as it only needs to inspect the types in question. For this reason,
-it is usually asked first and is able to distinguish many cases by itself.
+types and language-specific rules. For the C language \cite{isoc}, an example of
+this mechanism has been shown in Figure \ref{alias-example2} and discussed
+earlier.  This method is very fast, as it only needs to inspect the types in
+question. For this reason, it is usually asked first and is able to distinguish
+many cases by itself.
 
 \label{sec-baseoffset}
 \paragraph{Base and offset analysis}
-is used for structures or arrays, where the access is composed of base pointer and
+is used especially for structures or arrays, where the access is composed of base pointer and
 an offset. The offset information might not be complete, but sometimes the range
 for offset is known. If the bases are distinct memory locations, the accesses do
 not alias.  If the bases are provably the same memory locations, the offsets can
@@ -138,16 +139,15 @@ void base_offset(void) {
 \label{figure-base-offset-example}
 \end{figure}
 
-\paragraph{Points-to analysis} is used in case a memory access cannot be
-disambiguated by any simpler rule, points-to sets must be analyzes and
-evaluated. A {\it points-to set} for a variable (pointer) is a set of memory
+\paragraph{Points-to analysis} is used in a case a memory access cannot be
+disambiguated by any simpler rule. A {\it points-to set} for a variable (pointer) is a set of memory
 locations the variable can be used to access. For example, a simple non-pointer
 variable can only be used to access itself (access by name).  A pointer variable
-can be used to access other memory locations of which the address was taken. To
-disambiguate memory accesses the points-to sets have to be compared and if their
-intersection is empty, it is safe to assume they do not alias. If their
-intersection is non-empty, or some of the sets could not be computed, we must
-assume they do intersect to preserve correctness.
+can be used to access other memory locations of which the address was taken.
+To disambiguate two pointer-dereferences the corresponding points-to sets have
+to be compared and if their intersection is empty, it is safe to assume they do
+not alias. If their intersection is non-empty, or some of the sets could not be
+computed, we must assume they do intersect to preserve correctness.
 
 Compared to type based and base and offset analysis, points-to analysis is a
 time-consuming process and will be a focus of this chapter.
@@ -155,11 +155,11 @@ time-consuming process and will be a focus of this chapter.
 
 \section{Points-to analysis}
 
-Both type-based analysis and base and offset analysis run in constant time. On
-the other hand, points-to analysis requires nontrivial processing and does not
-necessarily scale and we discuss it further. To solve the problem we first need
-to distinguish between the variants of the problem, as the approach to solve
-them differs wildly. 
+Both type-based analysis and base and offset analysis run in practically
+constant time. On the other hand, points-to analysis requires nontrivial
+processing and does not necessarily scale and we discuss it further. 
+We first distinguish between the variants of the problem, as
+the approach to solve them differs wildly. 
 
 A {\it flow-sensitive} algorithm computes the alias information with regard to control
 flow. In the example in Figure \ref{alias-example-maymust} it would notice the
@@ -186,7 +186,7 @@ time during execution. This relation is symmetric, but is not transitive.
 \paragraph{Definition.} {\it Flow-insensitive must-alias information} is a binary
 relation on the variables $A_{\mathrm{FinMust}} \subseteq \Var \times \Var$. A pair
 $(x,y)$ is in the relation if and only if $x$ and $y$ always refer to the same
-memory location during the program execution. This relation is symmetrict, but
+memory location during the program execution. This relation is symmetric, but
 also transitive. 
 
 The flow-sensitive case is a more complicated, and can be examined both as a
@@ -232,8 +232,9 @@ variables are further restricted to well-defined types\footnote{Known type and
 number of indirections}. Although this is not always the case, it gives us hope
 that a successful alias analysis could be performed on a well-formed program.
 
-\TODO{Praxe}
-
+In practical applications, computing high-quality points-to analysis on a single
+function is achievable, but for interprocedural scope even the flow- and
+context-insensitive poses a considerable challenge.
 
 \subsection{Known algorithms and approaches}
 
@@ -282,11 +283,12 @@ The structure of proposed Andersen's flow-insensitive algorithm is shown in Figu
 \subsubsection{Steensgaard's algorithm}
 
 The main problem of Andersen's approach is scalability. 
-Elegant approach was developed by Bjarne Steensgaard \cite{Steensgaard96}. It is  a {\it
-unification-based}, similar to Andersen's, but uses unification instead of
-subset contraints. It only needs to partition pointers into equavalence
-classes, which can be done in almost linear time. This leads to a very fast and
-scalable algorithm, sacrificing some precision.
+Elegant approach was developed by Bjarne Steensgaard \cite{Steensgaard96}. 
+It is similar to Andersen's, but replaces inclusion-based constraints by
+equality-based constraints. Solving is then simplified to points-to class
+unification. This is why it is sometimes called {\it unification-based}
+algorithm. The unification can be done in almost linear time, which leads to a
+very fast and scalable algorithm, though sacrificing some precision.
 
 The unification-based algorithms are less used, as the method is
 believed to be patented by Microsoft\cite{patent:steensgaard}. It is being used
@@ -319,8 +321,7 @@ We will revisit the use of Bloom filters in later chapters.
 A Binary decision diagram (BDD) is a data structure used to represent boolean
 functions. It can be easily extended to represet relations by encoding
 characteristic function of given relation, and the complete alias information as
-well. Multiple algorithms based on the BDDs were developed \cite{whaley2004},
-\cite{bddbddb}, but most of them lack public and usable code for further
+well. Multiple algorithms based on the BDDs were developed \cite{whaley2004,bddbddb}, but most of them lack public and usable code for further
 development. The major issue with the use of BDDs is that they heavily rely on
 the correct variable ordering. Choosing wrong ordering quickly results in
 size explosion and speed decrease. However the BDD approach seems promising for
@@ -343,7 +344,8 @@ it has just in time compiler (JIT), and does not have pointers in the
 classic sense, only references, which simplifies some cases.
 
 There are many more compilers available, but most of them are proprietary or not
-maintained, as for example the Intel C++ Compiler (ICC) and VisualC++.
+maintained, as for example the Intel C++ Compiler (ICC), VisualC++, SUIF and
+IMPACT.
 
 It is very hard to compare many of the published results, as the
 implementations are not public, and mostly implemented for compilers that are
@@ -361,7 +363,7 @@ analyzers in open-source compilers.
 
 GCC has a good support for TBAA and Base-offset analysis, intraprocedural
 points-to analysis, but lacks a good interprocedural points-to analysis. We
-discuss details in later chapters.
+discuss details in Chapter \ref{chap-bloomaps-aa}.
 
 \subsubsection{LLVM/Clang}
 
@@ -378,7 +380,8 @@ context and field-sensitive points-to analysis in {\tt -ds-aa}.
 
 \subsubsection{Open64}
 
-It traditionally implements TBAA, Base and offset analysis and PTA using
+Open64 traditionally implements TBAA, Base and offset analysis and points-to
+analysis using
 Steensgaard's algorithm.  A new context-sensitive andersen-style alias analysis has been implemented in
 2013-2014 \cite{sui2014}, though the context sensitivity seems to be only
 partially implemented.
