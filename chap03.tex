@@ -5,7 +5,7 @@ During points-to analysis the datastructure is almost as important as the
 algorithm used. In the case of GCC, the structure chosen is a hybrid of bitmap
 and a linked list. This works fine for small and dense data, but not so well
 with large data. Converting to a better data structure is relatively easy task, but what data
-structures are available? We will start by examining the needs of a typical
+structures are available? We start by examining the needs of a typical
 Andersen-style algorithm and comparing theoretical complexities of various well
 known data structures. In the rest of this chapter we will describe a new
 enhancement of Bloom filters called Bloomaps, tailored specifically for the use
@@ -159,7 +159,7 @@ work well with {\tt UNION}, as the lists would have to be either concatenated
 (in which case the lists would grow exponentially) or pruned after each union,
 which would be essentially same as using bitmaps.
 
-\paragraph{Alternative structures.} A structure has been proposed by Michael T.
+\paragraph{Alternative structures.} A structure has been proposed by Michael
 Goodrich \cite{goodrich:2011}, called Invertible Bloom Lookup Tables (IBLT). The
 problem of IBLT is that they have non-zero probability of being unable to
 produce a complete list of entries, and do not provide the advantages of classic

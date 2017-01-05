@@ -61,23 +61,23 @@ chapters.
 In this work, we have temporarily duplicated the code into {\tt
 ik-structlias.c}, which was then modified to implement only the interprocedural
 case. This is just a temporary solution which enables us to run the original
-and modified IPA PTA algorithm in a single execution and directly compare the
-results. Furthermore, while benchmarking only the PTA code changes, the rest of
-the compiler is identical.  The most important reason is to avoid case
-separation in each function. The actual algorithm needs adjustments: we not
-only need to pass different data types, but some operations are no longer
-supported, and some operations should be used with greater care than they are
-now. After inspecting the code, it became clear that the two algorithms need to
-be separated.
+and modified points-to algorithm (called IPA KPTA) in a single execution and directly compare the
+results. Furthermore, while benchmarking only the points-to algorithms code
+changes, the rest of the compiler is identical.  The most important reason is
+to avoid case separation in each function. The actual algorithm needs
+adjustments: we not only need to pass different data types, but some operations
+are no longer supported, and some operations should be used with greater care
+than they are now. After inspecting the code, it became clear that the two
+algorithms need to be separated.
 
 To split the code, a few modifications has been done. Common functions were
 marked static and renamed to avoid confusion. New query functions were added to
-{\tt tree-ssa-alias.c}, which ask both the original and the new IPA PTA oracle
+{\tt tree-ssa-alias.c}, which ask both the original and the new points-to oracle
 if the data is available. A new pass has been created, called {\tt kpta}, which
 is controlled by new command line options:
 
 \begin{itemize}
-	\item {\tt -fipa-kpta} is an analog to {\tt -fipa-pta} and instructs the compiler to run the new IPA PTA algorithm during LTO phase, just after the original IPA PTA pass (if enabled).
+	\item {\tt -fipa-kpta} is an analog to {\tt -fipa-pta} and instructs the compiler to run the new IPA KPTA algorithm during LTO phase, just after the original IPA PTA pass (if enabled).
 	\item {\tt --param kpta-bloomap-size=n} forces a Bloomap of specific size.
 	\item {\tt --param kpta-bloomap-precision=p} forces a Bloomap of specific precision. The value passed is inverted precision in percent, so a value of $100$ will result in a precision of $1\%$.
 \end{itemize}
@@ -109,7 +109,7 @@ By using Bloomaps instead of classical bitmaps, we have improved significantly
 both the compile time and memory usage. See Figure
 \ref{figure-new-old-comparison} for comparison. We measured compile time in
 hours for the old IPA PTA algorithm, and we could only utilize 2 cores due to
-memory requirements. The improved IPA PTA algorithm finishes in just 16 minutes,
+memory requirements. The improved IPA KPTA algorithm finishes in just 16 minutes,
 utilizing approximately the same memory, but working in 8 threads instead of 2.
 Though the memory use is still not ideal, taking approximately extra 10 GB (see
 Figure \ref{figure-firefox-nolto} in the first chapter). It is now viable to
@@ -135,13 +135,17 @@ enable IPA KPTA by default during LTO phase.
 We have also analyzed the precision lost by using Bloomaps instead of an exact
 data structure. There is no good metric to use, as a single difference in
 answer might add or prevent some following queries. We implemented a special
-procedure that compares IPA PTA and KPTA results where boths sets are computed,
-and provide a comparison by intersecting all pairs of sets. A percentage of all
-non-empty intersection is computed for both the old and new algorithm. This
-approach is not ideal, as the absolute percentage varies greatly between
+procedure that compares IPA PTA and KPTA results. For variables where boths
+points-to sets are computed, we provide a comparison by intersecting all pairs
+of sets. A percentage of empty intersections is computed for both the old and
+new algorithm. Any difference is result of the imprecision introduced, either
+directly caused by imprecise intersection, or by conservative propagation
+earlier.
+
+This approach is not ideal, as the absolute percentage varies greatly between
 problem instances, but the relative difference is mostly stable. The precision
-achieved was always within $2\%$ of exact algorithm and some minor improvements
-were made using additional checks via enumeration.
+achieved was always within $2\%$ of exact datastructure and some minor
+improvements were made using additional checks via enumeration.
 
 \section{Future work}
 
