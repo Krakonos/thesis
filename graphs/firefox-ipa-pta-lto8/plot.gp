@@ -45,7 +45,7 @@ set palette defined ( 0 '#D73027',\
         8 '#1B7837'\
 )
 
-set xlabel "Running time (in minutes)"
+set xlabel "Running time (in seconds)"
 set ylabel "CPU cores used" textcolor rgbcolor '#5AAE61'
 set y2label "Memory used (in GB)" textcolor rgbcolor '#D73027'
 set xtics 60
